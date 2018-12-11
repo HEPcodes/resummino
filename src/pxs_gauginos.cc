@@ -29,7 +29,6 @@
  // Partonic cross section for gauginos.
 double born_gauginos(const double S, const double T, Parameters *params) {
     double born = 0.0;
-
     // initial (aa,bb) and final (ii,jj) state particles
     int aa = params->in1;
     int bb = params->in2;
@@ -46,15 +45,9 @@ double born_gauginos(const double S, const double T, Parameters *params) {
     ff->SetKinematic(params->mCH[ii], params->mCH[jj], S, T);
 
     //sum over different intermediate states
-    
 #ifdef SS
-    for (int index0 = 0, i0 = vboson_type[qs][0];
-         index0 < 2 && vboson_type[qs][index0] > -1;
-         index0++, i0 = vboson_type[qs][index0]) {
-      for (int index1 = 0, i1 = vboson_type[qs][0];
-           index1 < 2 && vboson_type[qs][index1] > -1;
-           index1++, i1 = vboson_type[qs][index1]) {
-
+    for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
+        for (int i1 = 2 * qs; i1 < qs + 2; i1++) {        
         struct Coupling Cw[4] = { params->vCHCH[i0][ii][jj],
                                   params->vqq[i0][bb][aa],
                                   params->vCHCH[i1][ii][jj],
@@ -125,9 +118,7 @@ double born_gauginos(const double S, const double T, Parameters *params) {
 
 #ifdef ST
     if (qt >= 0) {
-      for (int index0 = 0, i0 = vboson_type[qs][0];
-           index0 < 2 && vboson_type[qs][index0] > -1;
-           index0++, i0 = vboson_type[qs][index0]) {
+      for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
         for (int index1 = 0, i1 = squark_type[qt][0];
              index1 < 6; index1++, i1 = squark_type[qt][index1]) {
 
@@ -150,9 +141,7 @@ double born_gauginos(const double S, const double T, Parameters *params) {
 #ifdef SU
     if (qu <= 1) {
       qu = iabs(qu);
-      for (int index0 = 0, i0 = vboson_type[qs][0];
-           index0 < 2 && vboson_type[qs][index0] > -1;
-           index0++, i0 = vboson_type[qs][index0]) {
+      for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
         for (int index1 = 0, i1 = squark_type[qu][0];
              index1 < 6; index1++, i1 = squark_type[qu][index1]) {
 
@@ -197,7 +186,6 @@ double born_gauginos(const double S, const double T, Parameters *params) {
       }
     }
 #endif
-
     delete ff;
     return born;
 }
@@ -221,12 +209,8 @@ double born_gauginos_eps1(const double S, const double T, Parameters *params) {
     ff->SetKinematic(params->mCH[ii], params->mCH[jj], S, T);
 
 #ifdef SS
-    for (int index0 = 0, i0 = vboson_type[qs][0];
-         index0 < 2 && vboson_type[qs][index0] > -1;
-         index0++, i0 = vboson_type[qs][index0]) {
-      for (int index1 = 0, i1 = vboson_type[qs][0];
-           index1 < 2 && vboson_type[qs][index1] > -1;
-           index1++, i1 = vboson_type[qs][index1]) {
+    for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
+        for (int i1 = 2 * qs; i1 < qs + 2; i1++) {        
             struct Coupling Cw[4] = {
                 params->vCHCH[i0][ii][jj], params->vqq[i0][bb][aa],
                 params->vCHCH[i1][ii][jj], params->vqq[i1][bb][aa]
@@ -242,10 +226,8 @@ double born_gauginos_eps1(const double S, const double T, Parameters *params) {
 #endif
 #ifdef ST
        if (qt >= 0) {
-      for (int index0 = 0, i0 = vboson_type[qs][0];
-           index0 < 2 && vboson_type[qs][index0] > -1;
-           index0++, i0 = vboson_type[qs][index0]) {
-        for (int index1 = 0, i1 = squark_type[qt][0];
+         for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
+           for (int index1 = 0, i1 = squark_type[qt][0];
              index1 < 6; index1++, i1 = squark_type[qt][index1]) {
                 struct Coupling Cw[4] = {
                     params->vCHCH[i0][ii][jj], params->vqq[i0][bb][aa],
@@ -265,9 +247,7 @@ double born_gauginos_eps1(const double S, const double T, Parameters *params) {
    if (qu <= 1) {
      // qu -1 are same squarks as +1; since it is used as an index use abs()
      qu = iabs(qu);
-      for (int index0 = 0, i0 = vboson_type[qs][0];
-           index0 < 2 && vboson_type[qs][index0] > -1;
-           index0++, i0 = vboson_type[qs][index0]) {
+     for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
         for (int index1 = 0, i1 = squark_type[qu][0];
              index1 < 6; index1++, i1 = squark_type[qu][index1]) {
                 struct Coupling Cw[4] = {
@@ -306,12 +286,8 @@ double born_gauginos_eps2(const double S, const double T, Parameters *params) {
     ff->SetKinematic(params->mCH[ii], params->mCH[jj], S, T);
 
 #ifdef SS
-    for (int index0 = 0, i0 = vboson_type[qs][0];
-         index0 < 2 && vboson_type[qs][index0] > -1;
-         index0++, i0 = vboson_type[qs][index0]) {
-      for (int index1 = 0, i1 = vboson_type[qs][0];
-           index1 < 2 && vboson_type[qs][index1] > -1;
-           index1++, i1 = vboson_type[qs][index1]) {
+    for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
+        for (int i1 = 2 * qs; i1 < qs + 2; i1++) {        
         struct Coupling Cw[4] = {
           params->vCHCH[i0][ii][jj], params->vqq[i0][bb][aa],
           params->vCHCH[i1][ii][jj], params->vqq[i1][bb][aa]

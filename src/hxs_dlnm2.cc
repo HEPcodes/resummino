@@ -328,7 +328,7 @@ double dPS3_ONSHELL23_dlnM2(double &xa, double &xb, double &s2, double &t1,
         s2 = s2min * pow(s2max / s2min, x[2]);
         djac *= s2 * log(s2max / s2min);
       }
-      //    }
+      //}
 
     // Integration over t1 = (pa - p2)^2
     double t1min;
@@ -450,7 +450,7 @@ if (xamin == 0.0) {
         s2 = s2min * pow(s2max / s2min, x[2]);
         djac *= s2 * log(s2max / s2min);
       }
-      //    }
+      //}
 
     // Integration over t1.
     double t1min;
@@ -1076,15 +1076,6 @@ double IQ_dlnM2(double *x, size_t dim, void *jj) {
     const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, params);
     const double s = xa * xb * params->sh;
 
-    // Different three-particle phase space for on-shell subtraction
-    // for the associated gaugino-gluino production.
-    double s2_13, t1_13, s1_13, phi_13, djac13;
-    double s2_23, t1_23, s1_23, phi_23, djac23;
-    if (is_gaugino_gluino(params->out1, params->out2)) {
-        djac13 = dPS3_ONSHELL13_dlnM2(xa, xb, s2_13, t1_13, s1_13, phi_13, x, params);
-        djac23 = dPS3_ONSHELL23_dlnM2(xa, xb, s2_23, t1_23, s1_23, phi_23, x, params);
-    }
-
    if (djac == 0.0) {
         return 0.0;
     }
@@ -1112,7 +1103,6 @@ double IQ_dlnM2(double *x, size_t dim, void *jj) {
     pdfX(gb, qb, xb, params->mufs);
 
     double sig = 0.0;
-    double sigOS = 0.0;
 
     // Color average for 2->3 and LO.
     double color_average_2to3 = 1.0/3.0 * 1.0/8.0; 
@@ -1226,30 +1216,6 @@ double IQ_dlnM2(double *x, size_t dim, void *jj) {
                          DipQA_leptons(s, mi2, pt2, th, ph, 1, params));
                 }
 
-                // On-shell subtraction for the associated gaugino gluino production.
-                if (is_gaugino_gluino(params->out1, params->out2)) {
-
-                    if (abs(djac13) > 1E-15) {
-                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3 
-                            * real_quark_gaugino_gluino_onshell_13(s, s2_13, t1_13, s1_13, phi_13, 2, params) 
-                            * djac13;
-
-                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
-                              * real_quarkb_gaugino_gluino_onshell_13(s, s2_13, t1_13, s1_13, phi_13, 2, params) 
-                              * djac13;
-                    }
-
-                    if (abs(djac23) > 1E-15) {
-                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3  
-                              * real_quark_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23, phi_23, 1, params) 
-                               * djac23;
-
-
-                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
-                              * real_quarkb_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23, phi_23, 1, params) 
-                              * djac23;
-                    }
-                }
             }
         }
     }
@@ -1257,14 +1223,132 @@ double IQ_dlnM2(double *x, size_t dim, void *jj) {
     if (is_gaugino_gluino(params->out1, params->out2)) {
         double g3s = std::norm(params->gqq[0][0].R);
         return  0.5  * 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
-            *(4.0 * M_PI * aS(params->murs, params->set))* sig * djac/g3s
-            // on shell "remainder".
-            + 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
-        *(4.0 * M_PI * aS(params->murs, params->set))* sigOS /g3s * params->mis;
+            *(4.0 * M_PI * aS(params->murs, params->set))* sig * djac/g3s;
     } else {
         return  dij * 0.5 * 4/(96 *2*s) * (4 * M_PI * aS(params->murs, params->set)) * sig * djac;
     }
   
+}
+
+// resonant diagrams for gaugino-gluino production 
+double IQ23_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb;
+
+    // Different three-particle phase space for on-shell subtraction
+    // for the associated gaugino-gluino production.
+    //double s2_13, t1_13, s1_13, phi_13, djac13;
+    double s2_23, t1_23, s1_23, phi_23, djac23;
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+      // djac13 = dPS3_ONSHELL13_dlnM2(xa, xb, s2_13, t1_13, s1_13, phi_13, x, params);
+        djac23 = dPS3_ONSHELL23_dlnM2(xa, xb, s2_23, t1_23, s1_23, phi_23, x, params);
+    }
+
+    const double s = xa * xb * params->sh;
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double sigOS = 0.0;
+
+    // Color average for 2->3 and LO.
+    double color_average_2to3 = 1.0/3.0 * 1.0/8.0; 
+
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Tests charge conservation.
+
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+            
+                // On-shell subtraction for the associated gaugino gluino production.
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+
+                    if (abs(djac23) > 1E-15) {
+                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3  
+                              * real_quark_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23,
+                                                                     phi_23, 1, params);
+
+
+                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
+                              * real_quarkb_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23,
+                                                                      phi_23, 1, params);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Flux, symmetry factor, spin and color average.
+    double g3s = std::norm(params->gqq[0][0].R);
+        return 
+            // on shell "remainder".
+            + 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
+        *(4.0 * M_PI * aS(params->murs, params->set))* sigOS /g3s * params->mis * djac23;  
+}
+
+// resonant diagrams for gaugino-gluino production 
+double IQ13_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb;
+    
+    // Different three-particle phase space for on-shell subtraction
+    // for the associated gaugino-gluino production.
+    double s2_13, t1_13, s1_13, phi_13, djac13;
+    djac13 = dPS3_ONSHELL13_dlnM2(xa, xb, s2_13, t1_13, s1_13, phi_13, x, params);
+    const double s = xa * xb * params->sh;
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double sigOS = 0.0;
+
+    // Color average for 2->3 and LO.
+    double color_average_2to3 = 1.0/3.0 * 1.0/8.0; 
+
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Tests charge conservation.
+
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+            
+                // On-shell subtraction for the associated gaugino gluino production.
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+
+                    if (abs(djac13) > 1E-15) {
+                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3 
+                            * real_quark_gaugino_gluino_onshell_13(s, s2_13, t1_13, s1_13,
+                                                                   phi_13, 2, params);
+
+                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
+                              * real_quarkb_gaugino_gluino_onshell_13(s, s2_13, t1_13,
+                                                                      s1_13, phi_13, 2, params);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Flux, symmetry factor, spin and color average.
+        double g3s = std::norm(params->gqq[0][0].R);
+        return  
+            // on shell "remainder".
+            + 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
+        *(4.0 * M_PI * aS(params->murs, params->set))* sigOS /g3s * params->mis * djac13;
 }
 
 // Real quark and antiquark emission for joint resummation.
@@ -1451,7 +1535,7 @@ void hadronic_xs_dlnM2(double &res, double &err, double &chi2,
   switch(Flag) {
 
   case 0:
-    Integration(&IB_dlnM2, 2, 10000, params->precision, 1e-12, res, err, params);
+    Integration(&IB_dlnM2, 2, 10000, params->precision, 1e-12, res, err, params, 0.1, 5, 5);
     break;
   case 1:
     Integration(&IV_dlnM2, 2, 800, params->precision, 1e-12, res, err, params, 0.2);
@@ -1466,30 +1550,36 @@ void hadronic_xs_dlnM2(double &res, double &err, double &chi2,
 
   case 4:
     // on-shell remainder sizable -> increase precision by increasing number of calls
-    int calls;
     if (is_gaugino_gluino(params->out1, params->out2)) {
-      calls = 50000; // increase the number of calls slightly
-      // check if gluino is lighter than the squarks (without stop)
-      for (int i = 0; i < 12; i++) {
-        if (i == 8 || i == 11 ) {
-          continue; // no increase of calls needed
-        } if (params->mGL < params->mSQ[i]) {
-          calls = 100000; // on-shell remainder sizable
-          break;
-        }
+      double res13,res23, err13, err23;
+    Integration(&IQ_dlnM2, 5, 50000, params->precision, 
+                1e-12, res, err, params, 0.25, 5, 5);
+    Integration(&IQ23_dlnM2, 5, 200000, params->precision, 
+                1e-12, res23, err, params, 0.25, 5, 5);
+    int calls = 50000;
+    for (int i = 0; i < 12; i++) {
+      if (i == 8 || i == 11 ) {
+        continue; // no increase of calls needed
+      } if (params->mGL < params->mSQ[i]) {
+        calls = 100000; // on-shell remainder sizable
+        break;
       }
-    } else {
-      calls = 30000; // for the other processes there is no sizable onshell remainder
     }
-    Integration(&IQ_dlnM2, 5, calls, params->precision, 
-                1e-12, res, err, params, 0.25);
+    Integration(&IQ13_dlnM2, 5, calls, params->precision, 
+                1e-12, res13, err, params, 0.25, 5, 5);
+    res = res + res13 + res23;
+    err = sqrt(pow(err,2) + pow(err13,2) + pow(err23,2));              
+    } else {
+    Integration(&IQ_dlnM2, 5, 40000, params->precision, 
+                1e-12, res, err, params, 0.25, 5, 5);
+    }
     break;
   case 5: // threshold resummation (improved for DY; ordinary for gaugino-gluino)
-    Integration(&IR_dlnM2, 2, 15000, params->precision, 1e-12, res, err, params, 0.2);
+    Integration(&IR_dlnM2, 2, 20000, params->precision, 1e-12, res, err, params, 0.2, 5, 5);
     break;
   case 6: // ordinary threshold resummation (including nnll logs)
-    Integration(&IR_unimproved_dlnM2, 2, 15000, params->precision, 
-                1e-12, res, err, params, 0.2);
+    Integration(&IR_unimproved_dlnM2, 2, 20000, params->precision, 
+                1e-12, res, err, params, 0.2, 5, 5);
     break;
   default:
     break;

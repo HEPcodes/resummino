@@ -48,6 +48,8 @@
 // only regularize resonant propagator if needed -> results are less width dependent!
 // (seems like Prospino is doing sth like this! see Xmatrix_ng_c.f90 lines 68ff in prospino code)
 // (get similar results as with smaller WIDTH 1.0E-3, but more stable)
+// this is only used in the squared resonant diagrams!
+// the interference terms between resonant and non-resonant diagrams lead to minor contributions
 #define PROSPINO
 
 // Partonic cross section for real gluon emission.
@@ -208,33 +210,12 @@ double real_quark_gaugino_gluino(const double S, const double M2, const double P
                 continue;
             } 
             ff->SetWCoupling(Cw);
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m1) 
-                 &&  params->mSQ[i0] >= (ff->m2))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m1) 
-                &&  params->mSQ[i1] >= (ff->m2))) {
 
               ff->SetPropagator(params->mSQ[i0],
                                 params->mSQ[i1],
                                 params->mSQ[i0] * WIDTH,
                                 params->mSQ[i1] * WIDTH);
 
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
-
-#ifndef PROSPINO
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-#endif            
             born += ff->MttQ_GLGA_wos();
         }
     }
@@ -254,32 +235,12 @@ double real_quark_gaugino_gluino(const double S, const double M2, const double P
                 continue;
             }
             ff->SetWCoupling(Cw);
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m2) 
-                 && params->mSQs[i0] >= (ff->m1s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m2) 
-                    &&  params->mSQ[i1] >= (ff->m1))) {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
             
-#ifndef PROSPINO
+
             ff->SetPropagator(params->mSQ[i0],
                               params->mSQ[i1],
                               params->mSQ[i0] * WIDTH,
                               params->mSQ[i1] * WIDTH);
-#endif         
 
             born += ff->MuuQ_GLGA_wos();
         }
@@ -300,36 +261,11 @@ double real_quark_gaugino_gluino(const double S, const double M2, const double P
                 continue;
             }
             ff->SetWCoupling(Cw);
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m2) 
-                 && params->mSQs[i0] >= (ff->m1s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m1) 
-                    &&  params->mSQ[i0] >= (ff->m2))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m2) 
-                 && params->mSQs[i1] >= (ff->m1s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m1) 
-                    &&  params->mSQ[i1] >= (ff->m2))) {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
             
-#ifndef PROSPINO
             ff->SetPropagator(params->mSQ[i0],
                               params->mSQ[i1],
                               params->mSQ[i0] * WIDTH,
                               params->mSQ[i1] * WIDTH);
-#endif         
             
             born +=  ff->MtuQ_GLGA();
         }
@@ -385,33 +321,11 @@ double real_quarkb_gaugino_gluino(const double S, const double M2, const double 
             } 
             ff->SetWCoupling(Cw);
 
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m2) 
-                 &&  params->mSQ[i0] >= (ff->m1))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m2) 
-                    &&  params->mSQ[i1] >= (ff->m1))) {
 
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
-
-#ifndef PROSPINO
             ff->SetPropagator(params->mSQ[i0],
                               params->mSQ[i1],
                               params->mSQ[i0] * WIDTH,
                               params->mSQ[i1] * WIDTH);
-
-#endif            
             
             born += ff->MttQB_GLGA_wos();
         }
@@ -433,33 +347,11 @@ double real_quarkb_gaugino_gluino(const double S, const double M2, const double 
             }
             ff->SetWCoupling(Cw);
 
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m1) 
-                 && params->mSQs[i0] >= (ff->m2s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m1) 
-                 && params->mSQs[i1] >= (ff->m2s))) {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
-
-#ifndef PROSPINO
             ff->SetPropagator(params->mSQ[i0],
                               params->mSQ[i1],
                               params->mSQ[i0] * WIDTH,
                               params->mSQ[i1] * WIDTH);
 
-#endif
             born += ff->MuuQB_GLGA_wos();
         }
     }
@@ -479,37 +371,10 @@ double real_quarkb_gaugino_gluino(const double S, const double M2, const double 
                 continue;
             }
 
-#ifdef PROSPINO
-            if ((2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m2) 
-                 && params->mSQs[i0] >= (ff->m1s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i0] + ff->m1) 
-                    &&  params->mSQ[i0] >= (ff->m2))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m2) 
-                 && params->mSQs[i1] >= (ff->m1s))
-                || (2.0 * ff->papb >= pow2(params->mSQ[i1] + ff->m1) 
-                    &&  params->mSQ[i1] >= (ff->m2))) {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                params->mSQ[i0] * WIDTH,
-                                params->mSQ[i1] * WIDTH);
-
-            } else {
-
-              ff->SetPropagator(params->mSQ[i0],
-                                params->mSQ[i1],
-                                0.0,
-                                0.0);            
-            }
-#endif
-
-#ifndef PROSPINO
             ff->SetPropagator(params->mSQ[i0],
                               params->mSQ[i1],
                               params->mSQ[i0] * WIDTH,
                               params->mSQ[i1] * WIDTH);
-#endif            
-            
             
             ff->SetWCoupling(Cw);
             born += ff->MtuQB_GLGA();

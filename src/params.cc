@@ -519,7 +519,7 @@ xw = 0.231
                     for (int i4 = 0; i4 < 3; i4++) {
                         for (int i5 = 0; i5 < 2; i5++) {
                             hSQSQ[i0 + 4][i1 + 6][i2].R += mv[2] * vqq[2][i3 + 3][i4].L *
-                                                           RSU[i1][i3] * RSD[i2][i4] * RB[0][1 - i5] * RB[i1][i5];
+                                                           RSU[i1][i3] * RSD[i2][i4] * RB[0][1 - i5] * RB[1][i5];
                         }
                     }
                 }
@@ -892,15 +892,23 @@ void Parameters::read_slha(const char *file) {
             for (int i1 = 0; i1 < 2; i1++) {
               RSB[i0][i1] = to<double>(input.at("SBOTMIX").at(i0 + 1, i1 + 1).at(2));
 // Set diagonal (off-diagonal elements proportional to m_b = 0 )
-//#ifdef NO_SQUARK_MIXING
+    // only sbottom mixing for gaugino pair production implemented
+    if (!is_gaugino_gaugino(out1,out2)) {
+          if (i0 == i1) {
+            RSB[i0][i1] = 1.0;
+          } else {
+            RSB[i0][i1] = 0.0;
+          }
+        }
+#ifdef NO_SQUARK_MIXING
               if (i0 == i1) {
                 RSB[i0][i1] = 1.0;
               } else {
                   RSB[i0][i1] = 0.0;
               }
               
-//#endif
-              
+#endif
+    
             }
         }
 
@@ -1417,73 +1425,73 @@ void Parameters::write_log(const char *file) {
         fout << "\n";
     }
 
-    fout << "----------------------\n"
-         << "Z'/W' sector\n"
-         << "----------------------\n"
-         << "mv =";
-    for (int i0 = 0; i0 < 5; i0++) {
-        fout << "\t" << mv[i0];
-    }
-    fout << "\nGv =";
-    for (int i0 = 0; i0 < 5; i0++) {
-        fout << "\t" << Gv[i0];
-    }
-    fout << "\nZ'qqR =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vqq[3][i0][i1].R;
-        }
-        fout << "\n";
-    }
-    fout << "\nZ'qqL =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vqq[3][i0][i1].L;
-        }
-        fout << "\n";
-    }
-    fout << "\nW'qqR =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vqq[4][i0][i1].R;
-        }
-        fout << "\n";
-    }
-    fout << "\nW'qqL =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vqq[4][i0][i1].L;
-        }
-        fout << "\n";
-    }
-    fout << "\nZ'llR =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vll[3][i0][i1].R;
-        }
-        fout << "\n";
-    }
-    fout << "\nZ'llL =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vll[3][i0][i1].L;
-        }
-        fout << "\n";
-    }
-    fout << "\nW'llR =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vll[4][i0][i1].R;
-        }
-        fout << "\n";
-    }
-    fout << "\nW'llL =";
-    for (int i0 = 0; i0 < 6; i0++) {
-        for (int i1 = 0; i1 < 6; i1++) {
-            fout << "\t" << vll[4][i0][i1].L;
-        }
-        fout << "\n";
-    }
+    // fout << "----------------------\n"
+    //      << "Z'/W' sector\n"
+    //      << "----------------------\n"
+    //      << "mv =";
+    // for (int i0 = 0; i0 < 5; i0++) {
+    //     fout << "\t" << mv[i0];
+    // }
+    // fout << "\nGv =";
+    // for (int i0 = 0; i0 < 5; i0++) {
+    //     fout << "\t" << Gv[i0];
+    // }
+    // fout << "\nZ'qqR =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vqq[3][i0][i1].R;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nZ'qqL =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vqq[3][i0][i1].L;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nW'qqR =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vqq[4][i0][i1].R;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nW'qqL =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vqq[4][i0][i1].L;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nZ'llR =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vll[3][i0][i1].R;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nZ'llL =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vll[3][i0][i1].L;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nW'llR =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vll[4][i0][i1].R;
+    //     }
+    //     fout << "\n";
+    // }
+    // fout << "\nW'llL =";
+    // for (int i0 = 0; i0 < 6; i0++) {
+    //     for (int i1 = 0; i1 < 6; i1++) {
+    //         fout << "\t" << vll[4][i0][i1].L;
+    //     }
+    //     fout << "\n";
+    // }
     
     fout.close();
 }

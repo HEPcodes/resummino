@@ -93,7 +93,7 @@ void FI::SetKinematicRES23(const double mSQs, double &factor) {
 
     // Jacobian before reshuffling.
     double Jac =  kln(2.0*papb, 2.0 * p2p3 + m2s,m1s) 
-        * kln(2.0 * p2p3 + m2s,m2s,0) / (2.0 * p2p3 + m2s); // tot XS
+        * kln(2.0 * p2p3 + m2s,m2s,0) / (2.0 * p2p3 + m2s); 
 
     /* The reshuffling */
 
@@ -103,11 +103,11 @@ void FI::SetKinematicRES23(const double mSQs, double &factor) {
     // temporary variables for on shell kinematics
     double Qs = m1s + m2s + 2.* ( p1p3 + p2p3 + p1p2);
     double p1Q = m1s + p1p2 + p1p3;
-    //double paQ = pap1 + pap2 + pap3;
+    double paQ = pap1 + pap2 + pap3;
     double pbQ = pbp1 + pbp2 + pbp3;
-
-    // pap1 = kln(Qs,mSQs,m1s) / kln(Qs,2.0*p2p3 + m2s,m1s) * (pap1 - p1Q/Qs * paQ) 
-    //     + (Qs + m1s - mSQs) / (2*Qs) * paQ;
+    
+    pap1 = kln(Qs,mSQs,m1s) / kln(Qs,2.0*p2p3 + m2s,m1s) * (pap1 - p1Q/Qs * paQ) 
+        + (Qs + m1s - mSQs) / (2*Qs) * paQ;
 
     // set pbp1 to on shell kinematics
     pbp1 = kln(Qs,mSQs,m1s) / kln(Qs,2.0*p2p3 + m2s,m1s) * (pbp1 - p1Q/Qs * pbQ) 
@@ -116,26 +116,24 @@ void FI::SetKinematicRES23(const double mSQs, double &factor) {
     // set p2p3 to on shell kinematics
     p2p3 = 0.5 * (mSQs - m2s);
 
-    // adapt the 4 scalar products which depenend on the reshuffling 
-    pap2 = -1./2.*m1s + 1./2.*m2s + p2p3 - pap3 + pbp1;
-    pbp2 = papb - pbp1 - pbp3;
-    p1p3 = -p2p3 + pap3 + pbp3;
-    pap1 = 1./2.*m1s - 1./2.*m2s - p2p3 + papb - pbp1;
+    // new mandelstams
+    double t1 = - 2.0 * pap1 + m1s;
+    double s2 = 2.0 * p2p3 + m2s;
+    double t2 = -2.0 * pbp3;
+    double s1 = 2.0 * p1p2 + m1s + m2s;
+    double s = 2.0 * papb;
 
-    // 10 scalar products solved for 5 dependent ones
-    // which we reset according to the reshuffled momenta above
-    // [[pap2 == -1/2*m1s + 1/2*m2s + p2p3 - pap3 + pbp1, 
-    //   pbp2 == papb - pbp1 - pbp3, 
-    //   p1p3 == -p2p3 + pap3 + pbp3, 
-    //   p1p2 == -1/2*m1s - 1/2*m2s - pap3 + papb - pbp3, 
-    //   pap1 == 1/2*m1s - 1/2*m2s - p2p3 + papb - pbp1]]
-
+    // new momenta
+    pap2 = 0.5 * (s1 + t1 - t2 - m1s);
+    pbp2 = 0.5 * (s2 + t2 - t1); 
+    p1p3 = 0.5 * ( s -s1 - s2 + m2s); 
+        
     // Jacobian after reshuffling.
     double Jac_tilde = kln(2.0*papb, 2.0 * p2p3 + m2s,m1s) 
-        * kln(2.0 * p2p3 + m2s,m2s,0) / (2.0 * p2p3 + m2s); 
+        * kln(2.0 * p2p3 + m2s,m2s,0) / (2.0 * p2p3 + m2s);
   
     // set factor to rescale the full dP3s to the restricted phase space.
-    factor = Jac_tilde/Jac;
+     factor = Jac_tilde/Jac;    
 }
 
 // Sets on-shell kinematics for s13 (similar to RES23)
@@ -144,30 +142,31 @@ void FI::SetKinematicRES13(const double mSQs, double &factor) {
     double Jac = kln(2.0*papb, 2.0 * p1p3 + m1s,m2s) 
         * kln(2.0 * p1p3 + m1s,m1s,0) / (2.0 * p1p3 + m1s);
 
-//    double paQ = pap1 + pap2 + pap3;
+    double paQ = pap1 + pap2 + pap3;
     double pbQ = pbp1 + pbp2 + pbp3;
     double Qs = m1s + m2s + 2.* ( p1p3 + p2p3 + p1p2);
     double p2Q = m2s + p1p2 + p2p3;
 
-    // pap2 = kln(Qs,mSQs,m2s) / kln(Qs,2.0*p1p3 + m1s,m2s) * (pap2 - p2Q/Qs * paQ) 
-    //     + (Qs + m2s - mSQs) / (2*Qs) * paQ;
+    pap2 = kln(Qs,mSQs,m2s) / kln(Qs,2.0*p1p3 + m1s,m2s) * (pap2 - p2Q/Qs * paQ) 
+        + (Qs + m2s - mSQs) / (2*Qs) * paQ;
 
     pbp2 = kln(Qs,mSQs,m2s) / kln(Qs,2.0*p1p3 + m1s,m2s) * (pbp2 - p2Q/Qs * pbQ) 
         + (Qs + m2s - mSQs) / (2*Qs) * pbQ;
         
     p1p3 = 0.5 * (mSQs - m1s); 
 
-    pap1 = 1./2.*m1s - 1./2.*m2s + p1p3 - pap3 + pbp2;
-    pbp1 = papb - pbp2 - pbp3;
-    p2p3 = -p1p3 + pap3 + pbp3;
-    pap2 = -1./2.*m1s + 1./2.*m2s - p1p3 + papb - pbp2;
-
-    // [[pap1 == 1/2*m1s - 1/2*m2s + p1p3 - pap3 + pbp2,
-    //     pbp1 == papb - pbp2 - pbp3,
-    //     p2p3 == -p1p3 + pap3 + pbp3,
-    //     p1p2 == -1/2*m1s - 1/2*m2s - pap3 + papb - pbp3,
-    //     pap2 == -1/2*m1s + 1/2*m2s - p1p3 + papb - pbp2]]
-
+        // new mandelstams
+    double t1 = - 2.0 * pap2 + m2s;
+    double s2 = 2.0 * p1p3 + m1s;
+    double t2 = -2.0 * pbp3;
+    double s1 = 2.0 * p1p2 + m1s + m2s;
+    double s = 2.0 * papb;
+    
+    // new momenta
+    pap1 = 0.5 * (s1 + t1 - t2 - m2s);
+    pbp1 = 0.5 * (s2 + t2 - t1);
+    p2p3 = 0.5 * ( s -s1 - s2 + m1s);
+  
     double Jac_tilde = kln(2.0*papb, 2.0 * p1p3 + m1s,m2s) 
         * kln(2.0 * p1p3 + m1s,m1s,0) / (2.0 * p1p3 + m1s); 
 

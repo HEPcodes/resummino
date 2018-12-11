@@ -391,10 +391,10 @@ void hadronic_xs_dPT2(double &res, double &err, double &chi2,
         Integration(&IQ_dPT2, 5, 20000, params->precision, 1e-12, res, err, params);
         break;
     case 5:
-      Integration(&IR_dPT2, 5, 40000, params->precision, 1e-12, res, err, params, 0.2);
+      Integration(&IR_dPT2, 5, 60000, params->precision, 1e-12, res, err, params, 0.2, 5, 5);
         break;
     case 6:
-      Integration(&IJ_dPT2, 5, 40000, params->precision, 1e-12, res, err, params, 0.2);
+      Integration(&IJ_dPT2, 5, 60000, params->precision, 1e-12, res, err, params, 0.2, 5, 5);
         break;
         std::cout << "hadronic_xs_dPT2: Flag=" << Flag << std::endl;
         exit(0);
