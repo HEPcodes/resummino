@@ -1,0 +1,55 @@
+# Input card for Resummino.
+# This input card defines the hadron collider parameters and the process. The
+# SUSY model is defined in a separate file in the SLHA file format.
+# All energies and masses are in GeV.
+
+# Collider parameters.
+collider_type         = proton-proton  # proton-proton or proton-antiproton
+center_of_mass_energy = 8000
+
+# Outgoing particles using the value of the PDG-scheme number.
+# A negative particle number denotes the antiparticle. For the charginos the
+# antiparticle is negatively charged, whereas the charged antislepton is
+# positively charged.
+# ---------------------------------------------------------------
+# | ~e_L-     = 1000011 | ~e_R-   = 2000011 | ~nu_eL  = 1000012 |
+# | ~mu_L-    = 1000013 | ~mu_R-  = 2000013 | ~nu_muL = 1000014 |
+# | ~tau_1-   = 1000015 | ~tau_2- = 2000015 | ~nu_tau = 1000016 |
+# ---------------------------------------------------------------
+# | ~chi_10   = 1000022 | ~chi_20 = 1000023 | ~chi_30 = 1000025 |
+# | ~chi_40   = 1000035 | ~chi_1+ = 1000024 | ~chi_2+ = 1000037 |
+# ---------------------------------------------------------------
+particle1 =  1000011
+particle2 = -1000011
+
+# Defines the computation to be performed. Three computations are supported:
+# - result = total: outputs the total cross section.
+# - result = pt:    outputs the value for the transverse momentum at the
+#                   value specified by the `pt` variable.
+# - result = ptj:    outputs the value for the transverse momentum at the
+#                   value specified by the `pt` variable using the joint resummation formalism.		    
+# - result = m:     outputs the value for the invariant mass distribution at the
+#                   value specified by the `M` variable.
+result = total  # total, pt, ptj or m.
+M      = auto  # auto = sqrt((p1 + p2)^2)
+pt     = auto
+
+# SLHA input file that defines the SUSY benchmark point:
+slha = slha.in
+
+# PDF sets for LO and NLO. They should be present in the LHAPDF local setup.
+pdf_format = lhgrid  # lhgrid or lhpdf
+pdf_lo     = MSTW2008lo68cl
+pdfset_lo  = 0
+pdf_nlo    = MSTW2008nlo68cl
+pdfset_nlo = 0
+
+# Factorization and renormalization scale factors. They will be multiplied by
+# average of the masses of the outgoing particles to obtain the corresponding
+# scales.
+mu_f = 1
+mu_r = 1
+
+# Integration parameters.
+precision = 0.001  # desired precision
+max_iters = 3  # maximum iterations
