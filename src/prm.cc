@@ -368,7 +368,7 @@ void Parameters::set_couplings()
                     for (int i4 = 0; i4 < 3; i4++) {
                         for (int i5 = 0; i5 < 2; i5++) {
                             hSQSQ[i0 + 4][i1 + 6][i2].R += mv[2] * vqq[2][i3 + 3][i4].L *
-                                                           RSU[i1][i3] * RSD[i2][i4] * RB[0][1 - i5] * RB[i1][i5];
+                                                           RSU[i1][i3] * RSD[i2][i4] * RB[0][1 - i5] * RB[1][i5];
                         }
                     }
                 }
