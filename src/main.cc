@@ -1,8 +1,8 @@
 // This file is part of Resummino.
 //
 // Copyright 2008-2010 Jonathan Debove.
-// Copyright 2011-2013 David R. Lamprea.
-// Copyright 2011-2013 Marcel Rothering.
+// Copyright 2011-2015 David R. Lamprea.
+// Copyright 2011-2016 Marcel Rothering.
 //
 // Licensed under the terms of the EUPL version 1.1 or later.
 // See the LICENCE file for more information.
@@ -12,34 +12,40 @@
 #include <unistd.h>
 #include <errno.h>
 #include <cstdlib>
-#include <cmath>
 #include <stdio.h>
+#include <getopt.h>
+#include <stdlib.h>
+
+#include <cmath>
 #include <string>
 #include <complex>
-#include <stdio.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include "utils.h"
 #include <map>
+#include <iostream>
+
 #include "gsl_all.h"
-#include "prm.h"
-#include "npf.h"
+#include "params.h"
 #include "hxs.h"
-#include "fi.h"
+#include "kinematics.h"
 #include "pdf.h"
-#include "getopt.h"
-#include "globals.h"
+#include "utils.h"
+#include "clooptools.h"
+
 
 using namespace std;
 
-#define UNITS (result_type == total ? "pb" : "pb/GeV")
-#define get_option(name) (arguments[name] == "" ? config[name] : arguments[name])
+// will print only the expansion of the resummation up to NLO
+//#define EXPANSION
 
-static char * my_get_current_dir_name(void)
-{
-    // This is necessary for systems without GNU extensions.
+// fixed scale for invariant mass distribution
+//#define FIXED_SCALE
+
+#define UNITS (result_type == total ? "pb" : "pb/GeV")
+// Gets option from command-line if set, from input file otherwise.
+#define get_option(name)                                        \
+    (arguments[name] == "" ? config[name] : arguments[name])
+
+// Simple implementation of get_current_dir_name for system w/o GNU extensions.
+static char * my_get_current_dir_name(void) {
     size_t output_size = 100;
     char *output = (char*)malloc(output_size);
     output = getcwd(output, output_size);
@@ -50,8 +56,32 @@ static char * my_get_current_dir_name(void)
     return output;
 }
 
-static int pdg_to_internal_id(int pdg_code)
-{
+static void print_banner() {
+    printf("\n"                                                         \
+           "  Welcome to Resummino " RESUMMINO_VERSION "\n"             \
+           "  Copyright 2008-2010 Jonathan Debove.\n"                   \
+           "  Copyright 2011-2014 David R. Lamprea.\n" \
+           "  Copyright 2011-2016 Marcel Rothering.\n" \
+           "\n"                                                         \
+           "  Licensed under the EUPL 1.1 or later.\n"                  \
+           "  See http://www.resummino.org/ for more information.\n"    \
+           "\n"                                                         \
+           "  If using Resummino for slepton pair production, please cite.\n" \
+           "  - G. Bozzi, B. Fuks, M. Klasen, PRD 74, 015001 (2006); NPB 777, 157 (2007); NPB 794, 46 (2007).\n" \
+           "  - B. Fuks, M. Klasen, D. R. Lamprea, M. Rothering, EPJC 73, 2480 (2013).\n" \
+           "\n"                                                         \
+           "  For gaugino pair production, please cite:\n"              \
+           "  - J. Debove, B. Fuks, M. Klasen, PLB 688, 208 (2010); NPB 842, 51 (2011); NPB 849, 64 (2011).\n" \
+           "  - B. Fuks, M. Klasen, D. R. Lamprea, M. Rothering, JHEP 1210, 081 (2012); EPJC 73, 2480 (2013).\n" \
+           "\n"                                                         \
+           "  For associated gaugino gluino production, please cite:\n"              \
+           "  - B. Fuks, M. Klasen, M. Rothering, JHEP 07:053, (2016).\n" \
+           "  - B. Fuks, M. Klasen, D. R. Lamprea, M. Rothering, EPJC 73, 2480 (2013).\n" \
+           "\n");
+}
+
+
+static int pdg_to_internal_id(int pdg_code) {
     switch (pdg_code) {
     case 1000012: // ~nu_eL
         return 10;
@@ -120,34 +150,34 @@ static int pdg_to_internal_id(int pdg_code)
         return 31;
         break;
     case 2000001: // ~d_R
-        return 32;
-        break;
-    case 1000002: // ~u_L
-        return 33;
-        break;
-    case 2000002: // ~u_R
         return 34;
         break;
-    case 1000003: // ~s_L
-        return 35;
-        break;
-    case 2000003: // ~s_R
-        return 36;
-        break;
-    case 1000004: // ~c_L
+    case 1000002: // ~u_L
         return 37;
         break;
-    case 2000004: // ~c_R
-        return 38;
-        break;
-    case 1000005: // ~b_1
-        return 39;
-        break;
-    case 2000005: // ~b_2
+    case 2000002: // ~u_R
         return 40;
         break;
-    case 1000006: // ~t_1
+    case 1000003: // ~s_L
+        return 32;
+        break;
+    case 2000003: // ~s_R
+        return 35;
+        break;
+    case 1000004: // ~c_L
+        return 38;
+        break;
+    case 2000004: // ~c_R
         return 41;
+        break;
+    case 1000005: // ~b_1
+        return 33;
+        break;
+    case 2000005: // ~b_2
+        return 36;
+        break;
+    case 1000006: // ~t_1
+        return 39;
         break;
     case 2000006: // ~t_2
         return 42;
@@ -162,15 +192,221 @@ static int pdg_to_internal_id(int pdg_code)
 }
 
 // translates the conventions used in resummino.in
-  // to code conventions where p1 must be positive/neutral and p2 must be negative/neutral
-  // This should also work for squark-gaugino, but not 100% sure!
+// to code conventions where p1 must be positive/neutral and p2 must be negative/neutral
 static void set_particles(int pdg_p1, int pdg_p2, int *out1, int *out2) {
   int charge_p1 = pdg_particle_charge(pdg_p1);
   int charge_p2 = pdg_particle_charge(pdg_p2);
   int internal_p1 = pdg_to_internal_id(abs(pdg_p1));
   int internal_p2 = pdg_to_internal_id(abs(pdg_p2));
+  // up/down squark neutralino
+  if (
+      ((pdg_p1 == 1000001 || //left- and right-handed d-squarks
+	  pdg_p1 == 2000001 ||
+	  pdg_p1 == 1000003 ||
+	  pdg_p1 == 2000003 ||
+	  pdg_p1 == 1000005 ||
+	  pdg_p1 == 2000005 ||
+	pdg_p1 == 1000022 || //neutralinos
+	  pdg_p1 == -1000022||
+	  pdg_p1 == 1000023 ||
+	  pdg_p1 == -1000023||
+	  pdg_p1 == 1000025 ||
+	  pdg_p1 == -1000025||
+	  pdg_p1 == 1000035 ||
+	pdg_p1 == -1000035) &&
+       (pdg_p2 == 1000001 || //left- and right-handed d-squarks
+	  pdg_p2 == 2000001 ||
+	  pdg_p2 == 1000003 ||
+	  pdg_p2 == 2000003 ||
+	  pdg_p2 == 1000005 ||
+	  pdg_p2 == 2000005 ||
+	pdg_p2 == 1000022 || //neutralinos
+	  pdg_p2 == -1000022||
+	  pdg_p2 == 1000023 ||
+	  pdg_p2 == -1000023||
+	  pdg_p2 == 1000025 ||
+	  pdg_p2 == -1000025||
+	  pdg_p2 == 1000035 ||
+	pdg_p2 == -1000035))
+      ||
+      ((pdg_p1 == 1000002 || //left- and right-handed u-squarks
+	  pdg_p1 == 2000002 ||
+	  pdg_p1 == 1000004 ||
+	  pdg_p1 == 2000004 ||
+	  pdg_p1 == 1000006 ||
+	  pdg_p1 == 2000006 ||
+	pdg_p1 == 1000022 || //neutralinos
+	  pdg_p1 == -1000022||
+	  pdg_p1 == 1000023 ||
+	  pdg_p1 == -1000023||
+	  pdg_p1 == 1000025 ||
+	  pdg_p1 == -1000025||
+	  pdg_p1 == 1000035 ||
+	pdg_p1 == -1000035) &&
+       (pdg_p2 == 1000002 || //left- and right-handed u-squarks
+	  pdg_p2 == 2000002 ||
+	  pdg_p2 == 1000004 ||
+	  pdg_p2 == 2000004 ||
+	  pdg_p2 == 1000006 ||
+	  pdg_p2 == 2000006 ||
+	pdg_p2 == 1000022 || //neutralinos
+	  pdg_p2 == -1000022||
+	  pdg_p2 == 1000023 ||
+	  pdg_p2 == -1000023||
+	  pdg_p2 == 1000025 ||
+	  pdg_p2 == -1000025||
+	  pdg_p2 == 1000035 ||
+	pdg_p2 == -1000035))
+      ) {
+    *out1 = internal_p1;
+    *out2 = internal_p2;
+  }
 
-  if ( (charge_p1 == 1 || charge_p1 == 0) && (charge_p2 == -1 || charge_p2 == 0) ) {
+  // anti-up/down squark neutralino
+  else if (
+	   ((pdg_p1 == -1000001 ||
+	       pdg_p1 == -2000001 ||
+	       pdg_p1 == -1000003 ||
+	       pdg_p1 == -2000003 ||
+	       pdg_p1 == -1000005 ||
+	       pdg_p1 == -2000005 ||
+	     pdg_p1 == 1000022 || //neutralinos
+	       pdg_p1 == -1000022||
+	       pdg_p1 == 1000023 ||
+	       pdg_p1 == -1000023||
+	       pdg_p1 == 1000025 ||
+	       pdg_p1 == -1000025||
+	       pdg_p1 == 1000035 ||
+	     pdg_p1 == -1000035) &&
+	    (pdg_p2 == -1000001 ||
+	       pdg_p2 == -2000001 ||
+	       pdg_p2 == -1000003 ||
+	       pdg_p2 == -2000003 ||
+	       pdg_p2 == -1000005 ||
+	       pdg_p2 == -2000005 ||
+	     pdg_p2 == 1000022 || //neutralinos
+	       pdg_p2 == -1000022||
+	       pdg_p2 == 1000023 ||
+	       pdg_p2 == -1000023||
+	       pdg_p2 == 1000025 ||
+	       pdg_p2 == -1000025||
+	       pdg_p2 == 1000035 ||
+	     pdg_p2 == -1000035))
+	   ||
+	   ((pdg_p1 == -1000002 ||
+	       pdg_p1 == -2000002 ||
+	       pdg_p1 == -1000004 ||
+	       pdg_p1 == -2000004 ||
+	       pdg_p1 == -1000006 ||
+	       pdg_p1 == -2000006 ||
+	     pdg_p1 == 1000022 || //neutralinos
+	       pdg_p1 == -1000022||
+	       pdg_p1 == 1000023 ||
+	       pdg_p1 == -1000023||
+	       pdg_p1 == 1000025 ||
+	       pdg_p1 == -1000025||
+	       pdg_p1 == 1000035 ||
+	     pdg_p1 == -1000035) &&
+	    (pdg_p2 == -1000002 ||
+	       pdg_p2 == -2000002 ||
+	       pdg_p2 == -1000004 ||
+	       pdg_p2 == -2000004 ||
+	       pdg_p2 == -1000006 ||
+	       pdg_p2 == -2000006 ||
+	     pdg_p2 == 1000022 || //neutralinos
+	       pdg_p2 == -1000022||
+	       pdg_p2 == 1000023 ||
+	       pdg_p2 == -1000023||
+	       pdg_p2 == 1000025 ||
+	       pdg_p2 == -1000025||
+	       pdg_p2 == 1000035 ||
+	     pdg_p2 == -1000035))
+	   ) {
+    *out1 = internal_p2;
+    *out2 = internal_p1;
+  }
+  // down squarks chargino+
+  //and up squarks chargino-
+  else if (
+	   ((pdg_p1 == 1000001 ||
+	       pdg_p1 == 2000001 ||
+	       pdg_p1 == 1000003 ||
+	       pdg_p1 == 2000003 ||
+	       pdg_p1 == 1000005 ||
+	       pdg_p1 == 2000005 ||
+	     pdg_p1 == 1000024 || //charginos+
+	     pdg_p1 == 1000037) &&
+	    (pdg_p2 == 1000001 ||
+	       pdg_p2 == 2000001 ||
+	       pdg_p2 == 1000003 ||
+	       pdg_p2 == 2000003 ||
+	       pdg_p2 == 1000005 ||
+	       pdg_p2 == 2000005 ||
+	     pdg_p2 == 1000024 || //charginos+
+	     pdg_p2 == 1000037))
+	   ||
+	   ((pdg_p1 == 1000002 ||
+	       pdg_p1 == 2000002 ||
+	       pdg_p1 == 1000004 ||
+	       pdg_p1 == 2000004 ||
+	       pdg_p1 == 1000006 ||
+	       pdg_p1 == 2000006 ||
+	       pdg_p1 == -1000024||
+	     pdg_p1 == -1000037) &&
+	    (pdg_p2 == 1000002 ||
+	       pdg_p2 == 2000002 ||
+	       pdg_p2 == 1000004 ||
+	       pdg_p2 == 2000004 ||
+	       pdg_p2 == 1000006 ||
+	       pdg_p2 == 2000006 ||
+	       pdg_p2 == -1000024||
+	     pdg_p2 == -1000037))
+	   ) {
+    *out1 = internal_p1;
+    *out2 = internal_p2;
+  }
+  // anti-down squark chargino-
+  // and anti-up squark chargino+
+  else if (
+	   ((pdg_p1 == -1000001 ||
+	       pdg_p1 == -2000001 ||
+	       pdg_p1 == -1000003 ||
+	       pdg_p1 == -2000003 ||
+	       pdg_p1 == -1000005 ||
+	       pdg_p1 == -2000005 ||
+	     pdg_p1 == -1000024 || //charginos-
+	     pdg_p1 == -1000037) &&
+	    (pdg_p2 == -1000001 ||
+	       pdg_p2 == -2000001 ||
+	       pdg_p2 == -1000003 ||
+	       pdg_p2 == -2000003 ||
+	       pdg_p2 == -1000005 ||
+	       pdg_p2 == -2000005 ||
+	     pdg_p2 == -1000024 || //charginos-
+	     pdg_p2 == -1000037))
+	   ||
+	   ((pdg_p1 == -1000002 ||
+	       pdg_p1 == -2000002 ||
+	       pdg_p1 == -1000004 ||
+	       pdg_p1 == -2000004 ||
+	       pdg_p1 == -1000006 ||
+	       pdg_p1 == -2000006 ||
+	       pdg_p1 == 1000024  ||
+	     pdg_p1 == 1000037) &&
+	    (pdg_p2 == -1000002 ||
+	       pdg_p2 == -2000002 ||
+	       pdg_p2 == -1000004 ||
+	       pdg_p2 == -2000004 ||
+	       pdg_p2 == -1000006 ||
+	       pdg_p2 == -2000006 ||
+	       pdg_p2 == 1000024  ||
+	     pdg_p2 == 1000037))
+	   ) {
+    *out1 = internal_p2;
+    *out2 = internal_p1;
+  }
+    
+  else if ( (charge_p1 == 1 || charge_p1 == 0) && (charge_p2 == -1 || charge_p2 == 0) ) {
     *out1 = internal_p1;
     *out2 = internal_p2;
   }  else if ((charge_p2 == 1 || charge_p2 == 0) && (charge_p1 == -1 || charge_p1 == 0)) {
@@ -182,34 +418,15 @@ static void set_particles(int pdg_p1, int pdg_p2, int *out1, int *out2) {
   }
 }
 
-static void print_banner()
-{
-    printf("\n"                                                  \
-           "  Welcome to Resummino " RESUMMINO_VERSION "\n"             \
-           "  Copyright 2008-2010 Jonathan Debove.\n"                   \
-           "  Copyright 2011-2015 David R. Lamprea and Marcel Rothering.\n" \
-           "\n"                                                         \
-           "  Licensed under the EUPL 1.1 or later.\n"                  \
-           "  See http://www.resummino.org/ for more information.\n"    \
-           "\n"                                                         \
-           "  If using Resummino for slepton pair production, please cite.\n" \
-           "  - G. Bozzi, B. Fuks, M. Klasen, PRD 74, 015001 (2006); NPB 777, 157 (2007); NPB 794, 46 (2007).\n" \
-           "  - B. Fuks, M. Klasen, D. R. Lamprea, M. Rothering, arXiv:1304.0790 [hep-ph].\n" \
-           "\n"                                                         \
-           "  For gaugino pair production, please cite:\n"              \
-           "  - J. Debove, B. Fuks, M. Klasen, PLB 688, 208 (2010); NPB 842, 51 (2011); NPB 849, 64 (2011).\n" \
-           "  - B. Fuks, M. Klasen, D. R. Lamprea, M. Rothering, JHEP 1210, 081 (2012); arXiv:1304.0790 [hep-ph].\n" \
-           "\n");
-}
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     string input_file("resummino.in");
     string log_file("");
     int stop_after_lo = 0;
     int stop_after_nlo = 0;
+    int nll_unimproved = 0;
+    int nnll_unimproved = 0;
     enum {total, pt, m, ptj} result_type;
-    Parameters *jp = new Parameters();
+    Parameters *params = new Parameters();
 
     // A value different than "" for an argument means that the user has set
     // that argment through the command-line.
@@ -223,7 +440,7 @@ int main(int argc, char *argv[])
     arguments["mu_r"] = "";
     arguments["particle1"] = "";
     arguments["particle2"] = "";
-    arguments["output_file"] = "";
+    arguments["output"] = "";
     arguments["paramfile"] = "";
     arguments["center_of_mass_energy"] = "";
 
@@ -234,8 +451,8 @@ int main(int argc, char *argv[])
             {"parameter-log", required_argument, 0, 'p'},
             {"lo", no_argument, &stop_after_lo, 'l'},
             {"nlo", no_argument, &stop_after_nlo, 'n'},
+            {"nnll", no_argument, &nnll_unimproved, 'z'},
             {"invariant-mass", required_argument, 0, 'm'},
-            {"key", required_argument, 0, 'k'},
             {"transverse-momentum", required_argument, 0, 't'},
             {"pdfset_lo", required_argument, 0, 'a'},
             {"pdfset_nlo", required_argument, 0, 'b'},
@@ -243,14 +460,14 @@ int main(int argc, char *argv[])
             {"mu_r", required_argument, 0, 'r'},
             {"particle1", required_argument, 0, 'c'},
             {"particle2", required_argument, 0, 'd'},
-            {"output_file", required_argument, 0, 'o'},
+            {"output", required_argument, 0, 'o'},
             {"slha", required_argument, 0, 'i'},
             {"center_of_mass_energy", required_argument, 0, 'e'},
             {0, 0, 0, 0}
         };
         int option_index;
         int c;
-        c = getopt_long(argc, argv, "vhp:lnm:t:a:b:f:r:k:",
+        c = getopt_long(argc, argv, "vhp:lnm:t:a:b:f:r:o:",
                         long_options, &option_index);
         if (c == -1) {
             break;
@@ -262,7 +479,7 @@ int main(int argc, char *argv[])
             break;
         case 'h':
             fprintf(stdout,
-                    "\n  Please see http://www.resummino.org/ for instructions.\n\n");
+                    "Please see http://www.resummino.org/ for instructions.");
             exit(0);
             break;
         case 'p':
@@ -280,9 +497,6 @@ int main(int argc, char *argv[])
         case 'b':
             arguments["pdfset_nlo"] = optarg;
             break;
-        case 'k':
-            arguments["key"] = optarg;
-            break;
         case 'f':
             arguments["mu_f"] = optarg;
             break;
@@ -296,7 +510,7 @@ int main(int argc, char *argv[])
             arguments["particle2"] = optarg;
             break;
         case 'o':
-            arguments["output_file"] = optarg;
+            arguments["output"] = optarg;
             break;
         case 'i':
             arguments["slha"] = optarg;
@@ -305,8 +519,6 @@ int main(int argc, char *argv[])
             arguments["center_of_mass_energy"] = optarg;
             break;
         case '?':
-            fprintf(stderr, "error: Unknown option given.\n");
-            exit(1);
             break;
         default:
             break;
@@ -317,35 +529,34 @@ int main(int argc, char *argv[])
 
     // There can be either 0 or 1 left arguments (input file name).
     if (optind > argc) {
-        fprintf(stderr, "error: too many arguments.\n");
+        fprintf(stderr, "error: Too many arguments.\n");
         exit(1);
     } else if (optind == argc - 1) {
         input_file = argv[optind];
     } else {
-        fprintf(stderr, "warning: you did not specify an input file: "
-                "using default 'resummino.in'.\n");
+        fprintf(stderr, "warning: You did not specify an input file: "
+                "Using default 'resummino.in'.\n");
     }
 
-    map<string, string> config = jp->read_input_file(input_file);
+    map<string, string> config = params->read_input_file(input_file);
 
-    // Changes working directory to file folder for relative paths.
+
+    // Changes working directory to input file folder for relative paths for,
+    // e.g., LHAPDF file.
     string old_wd(my_get_current_dir_name());
-    //string real_name(canonicalize_file_name(input_file.c_str()));
     string real_name(realpath(input_file.c_str(), NULL));
-    chdir(real_name.substr(0, real_name.rfind("/")).c_str());
+    int count = chdir(real_name.substr(0, real_name.rfind("/")).c_str());
 
-    // Sets collider type.
     if (config["collider_type"] == "proton-proton") {
-        jp->ic = 0;
+        params->ic = 0;
     } else if (config["collider_type"] == "proton-antiproton"
                || config["collider_type"] == "antiproton-proton") {
-        jp->ic = 1;
+        params->ic = 1;
     } else {
-        fprintf(stderr, "error: collider type not recognized.\n");
+        fprintf(stderr, "error: Collider type not recognized.\n");
         exit(1);
     }
 
-    // Sets computation type.
     if (config["result"] == "total") {
         result_type = total;
     } else if (config["result"] == "pt") {
@@ -355,76 +566,133 @@ int main(int argc, char *argv[])
     } else if (config["result"] == "ptj") {
         result_type = ptj;
     } else {
-        fprintf(stderr, "error: computation '%s' not recognized. "
-                "'total', 'pt', 'ptj' or 'm' expected.\n",
+        fprintf(stderr, "error: Computation '%s' not recognized. "
+                "'total', 'pt' or 'm' expected.\n",
                 config["result"].c_str());
         exit(1);
     }
 
-    // Sets process.
-    jp->in1 = 0;
-    jp->in2 = 0;
 
+    params->in1 = 0;
+    params->in2 = 0;
     int pdg_p1 = atoi(get_option("particle1").c_str());
     int pdg_p2 = atoi(get_option("particle2").c_str());
+    params->out1 = pdg_to_internal_id(abs(pdg_p1));
+    params->out2 = pdg_to_internal_id(abs(pdg_p2));
 
-    set_particles(pdg_p1, pdg_p2, &jp->out1, &jp->out2);
-    jp->sh = pow2(atof(config["center_of_mass_energy"].c_str()));
+    set_particles(pdg_p1, pdg_p2, &params->out1, &params->out2);
+    params->sh = pow2(atof(get_option("center_of_mass_energy").c_str()));
+//    printf("out1 = %i \t out2 = %i \n",params->out1,params->out2);
 
-    // Diagonal CKM matrix.
-    for (int i0 = 0; i0 < 3; i0++) {
-        for (int i1 = 0; i1 < 3; i1++) {
-            jp->ckm[i0][i1] = (i0 == i1 ? 1.0 : 0.0);
-        }
+    // no pt or pt resummation for gaugino gluino production
+    if ( is_gaugino_gluino(params->out1,params->out2) && (config["result"] == "ptj" || config["result"] == "pt")) {
+        fprintf(stdout, "No pt-distribution for associated gaugino-gluino production.\n");
+        exit(1);
     }
 
-    // Sets Yukawa couplings to 0 for (d,s,b,u,c).
-    for (int i0 = 0; i0 < 6; i0++) {
-        jp->yq[i0] = 0.;
-    }
 
-    // Reads parameters from SLHA.
-    jp->read_slha(get_option("slha").c_str());
+    params->read_slha(get_option("slha").c_str());
 
     // Sets SM and SUSY couplings.
-    jp->set_couplings();
+    params->set_couplings();
 
-    // Sets the transverse momentum.
+    // Reads and sets Z' and W' parameters and couplings.
+    // params->read_ZpWp(get_option("zpwp").c_str());
+
+    // Set Yukawa couplings to 0 for (d,s,b,u,c).
+    for (int i0 = 0; i0 < 6; i0++) {
+        params->yq[i0] = 0.0;
+    }
+
     if (get_option("pt") == "auto" || get_option("pt") == "") {
-        jp->pts = -1;
+        params->pts = -1;
     } else {
-        jp->pts = pow2(atof(get_option("pt").c_str()));
+        params->pts = pow2(atof(get_option("pt").c_str()));
     }
 
-    // Sets the invariant mass.
+    // check if squarks (except stop), are degenerate
+    // bool deg_squarks used in breit wigner mapping
+    double sq_mass_sum;
+    for (int i = 0; i < 12; i++) {
+      if (i == 8 || i == 11 ) {
+        continue; // no stops 
+      }
+        sq_mass_sum += params->mSQ[i]; 
+    }
+    double aSQm = sq_mass_sum/10.0; // average squark mass
+    params->deg_squarks = true;
+    for (int i = 0; i < 12; i++) {
+      if (i == 8 || i == 11 ) {
+        continue; // no stops
+      }
+        if (abs(params->mSQ[i] - aSQm) > 0.1) { // if one of the squark masses is different-> break
+          params->deg_squarks = false;
+            break;
+        } 
+    }
+
+    // pow2(m1 + m2) (sum of final states masses)
+    double Mfs = 0.0;
+    if (params->out1 < 10 && params->out2 < 10) {
+      Mfs = pow2(params->mCH[params->out1] + params->mCH[params->out2]);
+    } else if (params->out1 >= 10 && params->out1 < 20) {
+      Mfs = pow2(params->mSL[params->out1 - 10] + params->mSL[params->out2 - 10]);
+    } else if (params->out1 == 30) {
+      Mfs = pow2(params->mGL + params->mCH[params->out2]);
+    } else if (params->out2 == 30) {
+      Mfs = pow2(params->mGL + params->mCH[params->out1]);
+    } else if (params->out1 > 30 && params->out2 < 10) {
+      Mfs = pow2(params->mSQ[params->out1 - 31] + params->mCH[params->out2]);
+    } else if (params->out2 > 30 && params->out1 < 10) {
+      Mfs = pow2(params->mSQ[params->out2 - 31] + params->mCH[params->out1]);
+    } else {
+      Mfs= pow2(params->ml[params->out1 - 20]
+                         + params->ml[params->out2 - 20]);
+    }
+    
+    
     if (get_option("M") == "auto" || get_option("M") == "") {
-        // Sets automatic invariant mass.
-        if (jp->out1 < 10) {
-            jp->mis = pow2(jp->mCH[jp->out1] + jp->mCH[jp->out2]);
-        } else if (jp->out1 >= 10 && jp->out1 < 20) {
-            jp->mis = pow2(jp->mSL[jp->out1 - 10] + jp->mSL[jp->out2 - 10]);
-        }
+        // Sets automatic "invariant mass".
+      params->mis = Mfs;
     } else {
-        // Sets user-defined invariant mass.
-        jp->mis = pow2(atof(get_option("M").c_str()));
+        // Sets user-defined invariant mass. (for inv mass distribution)
+        params->mis = pow2(atof(get_option("M").c_str()));
     }
 
-    // Sets scales.
-    jp->mufs = pow2(atof(get_option("mu_f").c_str())) * jp->mis;
-    jp->murs = pow2(atof(get_option("mu_r").c_str())) * jp->mis;
+    // factorization and renormalization scale values
+    if (config["result"] == "m") {
+        // Central scale is the invariant mass for invariant mass distributions.
+        params->mufs = pow2(atof(get_option("mu_f").c_str())) * params->mis;
+        params->murs = pow2(atof(get_option("mu_r").c_str())) * params->mis;
+        // params->mufs = pow2(atof(get_option("mu_f").c_str())) * params->mis * 0.25;
+        // params->murs = pow2(atof(get_option("mu_r").c_str())) * params->mis * 0.25;
+    } else {
+        // Central scale is average mass of final state particles (for total XS)
+        //fprintf(stderr, "warning: scale not set. Using average of final state masses! \n");
+      params->mufs = pow2(atof(get_option("mu_f").c_str())) * params->mis * 0.25;
+      params->murs = pow2(atof(get_option("mu_r").c_str())) * params->mis * 0.25;
+    }
 
-    // Integration parameters.
-    jp->precision = atof(config["precision"].c_str());
-    jp->max_iters = atoi(config["max_iters"].c_str());
-    jp->fout = stderr;
+    // activate for fix scale in inv mass distribution
+#ifdef FIXED_SCALE
+        params->mufs = pow2(atof(get_option("mu_f").c_str())) * Mfs * 0.25;
+        params->murs = pow2(atof(get_option("mu_r").c_str())) * Mfs * 0.25;
+#endif
+
+    // integration parameters
+    params->precision = atof(get_option("precision").c_str());
+    params->max_iters = atoi(get_option("max_iters").c_str());
+    params->fout = stderr;
 
     // Restores working directory and saves the parameter log.
-    chdir(old_wd.c_str());
+    count = chdir(old_wd.c_str());
     if (log_file != "") {
-        jp->write_log(log_file.c_str());
+        params->write_log(log_file.c_str());
     }
 
-    // Computes the processes at LO, NLO und NLO+NLL.
+    /*
+     * Computes the processes at LO, NLO und NLO+NLL.
+     */
 
     double res0 = 0.0;
     double err0 = 0.0;
@@ -439,180 +707,246 @@ int main(int argc, char *argv[])
     double chisq = 0.0;
 
     // Sets the PDF at LO.
-    if (config["pdf_format"] == "lhpdf") {
-        LHAPDF::initPDFSet(config["pdf_lo"], LHAPDF::LHPDF,
+    if (get_option("pdf_format_lo") == "lhpdf" ||
+        (get_option("pdf_format_lo") == "" && get_option("pdf_format") == "lhpdf")) {
+        LHAPDF::initPDFSet(get_option("pdf_lo"), LHAPDF::LHPDF,
                            atoi(get_option("pdfset_lo").c_str()));
     } else {
-        LHAPDF::initPDFSet(config["pdf_lo"], LHAPDF::LHGRID,
-        atoi(get_option("pdfset_lo").c_str()));
+        LHAPDF::initPDFSet(get_option("pdf_lo"), LHAPDF::LHGRID,
+                           atoi(get_option("pdfset_lo").c_str()));
     }
+    // print strong coupling values
+    printf(" alpha_s(M_Z^2) = %6.4f \t for LO PDF set \n",
+           aS(pow2(91.188000), params->set));
+    printf(" alpha_s(%4.3f^2) = %6.4f \t for LO PDF set \n",
+           std::sqrt(params->murs), aS(params->murs, params->set));
+
+   //inits looptools
+    ltini();
+
+    setmudim(params->murs);
+    // to generate randon numbers. seed with the time
+    srand( time( NULL ) );
 
     // LO calculation
     switch (result_type) {
     case total:
-        hadronic_xs(res0, err0, chisq, 0, -0, jp);
+        hadronic_xs(res0, err0, 0, params);
         break;
     case pt:
-        hadronic_xs_dPT2(res0, err0, chisq, 0, -0, jp);
-        res0 *= 2.0 * sqrt(jp->pts);
-        err0 *= 2.0 * sqrt(jp->pts);
+        hadronic_xs_dPT2(res0, err0, chisq, 0, -0, params);
+        res0 *= 2.0 * sqrt(params->pts);
+        err0 *= 2.0 * sqrt(params->pts);
         break;
     case ptj:
-        hadronic_xs_dPT2(res0, err0, chisq, 0, -0, jp);
-        res0 *= 2.0 * sqrt(jp->pts);
-        err0 *= 2.0 * sqrt(jp->pts);
+        hadronic_xs_dPT2(res0, err0, chisq, 0, -0, params);
+        res0 *= 2.0 * sqrt(params->pts);
+        err0 *= 2.0 * sqrt(params->pts);
         break;
     case m:
-        hadronic_xs_dlnM2(res0, err0, chisq, 0, -0, jp);
-        res0 *= 2.0 / sqrt(jp->mis);
-        err0 *= 2.0 / sqrt(jp->mis);
+        hadronic_xs_dlnM2(res0, err0, chisq, 0, -0, params);
+        res0 *= 2.0 / sqrt(params->mis);
+        err0 *= 2.0 / sqrt(params->mis);
         break;
     }
     res1 = res0;
-    err1 = err0;
+    err1 = pow2(err0);
 
-    printf("LO = (%.7e +- %.7e) %s [chi**2 = %.7e]\n",
-           res1, sqrt(err1), UNITS, chisq);
+    printf("LO = (%.7e +- %.7e) %s\n",
+           res1, sqrt(err1), UNITS);
 
-    /*
-    if (stop_after_lo) {
-        // Prints again the results.
-        printf("\nResults:\n"
-               "LO = (%.7e +- %.7e) %s\n",
-               res1, sqrt(err1), UNITS);
-
-        exit(0);
-    }
-    */
     if (!stop_after_lo) {
-
         // Sets the PDF at NLO.
-        if (config["pdf_format"] == "lhpdf") {
-            LHAPDF::initPDFSet(config["pdf_nlo"], LHAPDF::LHPDF,
+        if (get_option("pdf_format_nlo") == "lhpdf" ||
+            (get_option("pdf_format_nlo") == "" && get_option("pdf_format") == "lhpdf")) {
+            LHAPDF::initPDFSet(get_option("pdf_nlo"), LHAPDF::LHPDF,
                                atoi(get_option("pdfset_nlo").c_str()));
         } else {
-            LHAPDF::initPDFSet(config["pdf_nlo"], LHAPDF::LHGRID,
-            atoi(get_option("pdfset_nlo").c_str()));
+            LHAPDF::initPDFSet(get_option("pdf_nlo"), LHAPDF::LHGRID,
+                               atoi(get_option("pdfset_nlo").c_str()));
         }
+
+        //Print values for alpha
+        printf(" alpha_s(M_Z^2) = %6.4f \t for NLO PDF set \n",
+               aS(pow2(91.188000), params->set));
+        printf(" alpha_s(%4.3f^2) = %6.4f \t for NLO PDF set \n",
+               std::sqrt(params->murs), aS(params->murs, params->set));
+
         // NLO
         for (int i0 = 0; i0 < 5; i0++) {
             switch (result_type) {
             case total:
-                hadronic_xs(res0, err0, chisq, i0, -0, jp);
+                hadronic_xs(res0, err0, i0,  params);
                 break;
             case pt:
-                hadronic_xs_dPT2(res0, err0, chisq, i0, -0, jp);
-                res0 *= 2.0 * sqrt(jp->pts);
-                err0 *= 2.0 * sqrt(jp->pts);
+                hadronic_xs_dPT2(res0, err0, chisq, i0, -0, params);
+                res0 *= 2.0 * sqrt(params->pts);
+                err0 *= 2.0 * sqrt(params->pts);
                 break;
             case ptj:
-                hadronic_xs_dPT2(res0, err0, chisq, i0, -0, jp);
-                res0 *= 2.0 * sqrt(jp->pts);
-                err0 *= 2.0 * sqrt(jp->pts);
+                hadronic_xs_dPT2(res0, err0, chisq, i0, -0, params);
+                res0 *= 2.0 * sqrt(params->pts);
+                err0 *= 2.0 * sqrt(params->pts);
                 break;
             case m:
-                hadronic_xs_dlnM2(res0, err0, chisq, i0, -0, jp);
-                res0 *= 2.0 / sqrt(jp->mis);
-                err0 *= 2.0 / sqrt(jp->mis);
+                hadronic_xs_dlnM2(res0, err0, chisq, i0, -0, params);
+                res0 *= 2.0 / sqrt(params->mis);
+                err0 *= 2.0 / sqrt(params->mis);
                 break;
             }
             if (i0 == 0)    {
                 res2 = res0;
-                err2 = err0;
+                err2 = pow2(err0);
             } else if (i0 < 5) {
                 res2 += res0;
-                err2 += err0;
+                err2 += pow2(err0);
             }
         }
 
-        printf("NLO = (%.7e +- %.7e) %s [chi**2 = %.7e]\n",
-               res2, sqrt(err2), UNITS, chisq);
-        /*
-        if (stop_after_nlo) {
-            // Prints again the results.
-            printf("\nResults:\n"
-                   "LO = (%.7e +- %.7e) %s\n"
-                   "NLO = (%.7e +- %.7e) %s\n",
-                   res1, sqrt(err1), UNITS,
-                   res2, sqrt(err2), UNITS);
-            exit(0);
-        }
-        */
-        if (!stop_after_nlo) {
+        printf("NLO = (%.7e +- %.7e) %s\n",
+               res2, sqrt(err2), UNITS);
+
+        if (!stop_after_lo && !stop_after_nlo) {
+
             // NLO+NLL
-            pdfFit(jp->a1min, jp->afit, jp->mis / jp->sh, jp->mufs);
+
+          // default weights for PDF fitting
+          double weight_valence = -1.6;
+          double weight_sea = -1.6;
+          double weight_gluon = -1.6;
+          double xmin = params->mis / params->sh;
+            
+          // reads fitting parameters from input file if specified
+          if(get_option("xmin") == "" || get_option("xmin") == "auto") {
+            xmin = params->mis / params->sh;
+          } else {
+            xmin = atof(get_option("xmin").c_str());
+          }
+          if(get_option("weight_valence") == "" || get_option("weight_valence") == "auto") {
+            weight_valence = -1.6;
+          } else {
+            weight_valence = atof(get_option("weight_valence").c_str());
+          }
+          if(get_option("weight_sea") == "" || get_option("weight_sea") == "auto") {
+            weight_sea = -1.6;
+          } else {
+            weight_sea = atof(get_option("weight_sea").c_str());
+          }
+          if(get_option("weight_gluon") == "" || get_option("weight_gluon") == "auto") {
+            weight_gluon = -1.6;
+          } else {
+            weight_gluon = atof(get_option("weight_gluon").c_str());
+          }
+          
+
+          // PDF fitting procedure
+            pdfFit(params->a1min, params->afit,
+                   params->mis / params->sh, params->mufs, weight_valence, weight_sea, weight_gluon, xmin);
             for (int i0 = 5; i0 < 6; i0++) {
                 switch (result_type) {
                 case total:
-                    hadronic_xs(res0, err0, chisq, i0, -0, jp);
+                    if (nnll_unimproved == 0) {
+                    hadronic_xs(res0, err0, i0, params);
+                    }
+                    else { 
+                        i0 = 6;
+                        hadronic_xs(res0, err0, i0, params);
+                    }
                     break;
                 case pt:
-                    hadronic_xs_dPT2(res0, err0, chisq, i0, -0, jp);
-                    res0 *= 2.0 * sqrt(jp->pts);
-                    err0 *= 2.0 * sqrt(jp->pts);
+                    hadronic_xs_dPT2(res0, err0, chisq, i0, -0, params);
+                    res0 *= 2.0 * sqrt(params->pts);
+                    err0 *= 2.0 * sqrt(params->pts);
                     break;
                 case ptj:
-                    hadronic_xs_dPT2(res0, err0, chisq, i0, -0, jp);
-                    res0 *= 2.0 * sqrt(jp->pts);
-                    err0 *= 2.0 * sqrt(jp->pts);
+                    hadronic_xs_dPT2(res0, err0, chisq, i0, -0, params);
+                    res0 *= 2.0 * sqrt(params->pts);
+                    err0 *= 2.0 * sqrt(params->pts);
                     break;
                 case m:
-                    hadronic_xs_dlnM2(res0, err0, chisq, i0, -0, jp);
-                    res0 *= 2.0 / sqrt(jp->mis);
-                    err0 *= 2.0 / sqrt(jp->mis);
-                    break;
+                  if (nnll_unimproved == 0) {
+                    hadronic_xs_dlnM2(res0, err0, chisq, i0, -0, params);
+                  }
+                  else { 
+                    i0 = 6;
+                    hadronic_xs_dlnM2(res0, err0, chisq, i0, -0, params);
+                  }
+                  res0 *= 2.0 / sqrt(params->mis);
+                  err0 *= 2.0 / sqrt(params->mis);
+                  break;
                 }
+#ifndef EXPANSION
                 res3 = res2 + res0;
-                err3 = err2 + err0;
+                err3 = err2 + pow2(err0);
+#endif
+
+#ifdef EXPANSION
+                res3 = res0;
+                err3 =pow2(err0);
+#endif
             }
 
-            printf("NLO+NLL = (%.7e +- %.7e) %s [chi**2 = %.7e]\n",
-                   res3, sqrt(err3), UNITS, chisq);
-
+            if (nnll_unimproved != 0) {
+            printf("NLO+NNLL = (%.7e +- %.7e) %s\n",
+                   res3, sqrt(err3), UNITS);
+            } else {
+              printf("NLO+NLL = (%.7e +- %.7e) %s\n",
+                     res3, sqrt(err3), UNITS);
+            }
             // Joint resummation.
             if (result_type == ptj) {
-                hadronic_xs_dPT2(res0, err0, chisq, 6, -0, jp);
-                res0 *= 2.0 * sqrt(jp->pts);
-                err0 *= 2.0 * sqrt(jp->pts);
+                hadronic_xs_dPT2(res0, err0, chisq, 6, -0, params);
+                res0 *= 2.0 * sqrt(params->pts);
+                err0 *= 2.0 * sqrt(params->pts);
                 res4 = res2 + res0;
-                err4 = err2 + err0;
-                printf("NLO+NLLj = (%.7e +- %.7e) %s [chi**2 = %.7e]\n",
-                       res4, sqrt(err4), UNITS, chisq);
+                err4 = err2 + pow2(err0);
+                printf("NLO+NLLj = (%.7e +- %.7e) %s\n",
+                       res4, sqrt(err4), UNITS);
             }
 
         }
 
     }
 
+    // Looptools exit.
+    ltexi();
+
     // Prints again the results.
     if (result_type == ptj) {
-        printf("\nResults:\n"
-               "LO = (%.7e +- %.7e) %s\n"
-               "NLO = (%.7e +- %.7e) %s\n"
-               "NLO+NLL = (%.7e +- %.7e) %s\n"
-               "NLO+NLLj = (%.7e +- %.7e) %s\n",
-               res1, sqrt(err1), UNITS,
-               res2, sqrt(err2), UNITS,
-               res3, sqrt(err3), UNITS,
-               res4, sqrt(err4), UNITS);
+      printf("\nResults:\n"
+             "LO = (%.7e +- %.7e) %s\n"
+             "NLO = (%.7e +- %.7e) %s\n"
+             "NLO+NLL = (%.7e +- %.7e) %s\n"
+             "NLO+NLLj = (%.7e +- %.7e) %s\n",
+             res1, sqrt(err1), UNITS,
+             res2, sqrt(err2), UNITS,
+             res3, sqrt(err3), UNITS,
+             res4, sqrt(err4), UNITS);
+    } else if (nnll_unimproved != 0) {
+      printf("\nResults:\n"
+             "LO = (%.7e +- %.7e) %s\n"
+             "NLO = (%.7e +- %.7e) %s\n"
+             "NLO+NNLL = (%.7e +- %.7e) %s\n",
+             res1, sqrt(err1), UNITS,
+             res2, sqrt(err2), UNITS,
+             res3, sqrt(err3), UNITS);
     } else {
-        printf("\nResults:\n"
-               "LO = (%.7e +- %.7e) %s\n"
-               "NLO = (%.7e +- %.7e) %s\n"
-               "NLO+NLL = (%.7e +- %.7e) %s\n",
-               res1, sqrt(err1), UNITS,
-               res2, sqrt(err2), UNITS,
-               res3, sqrt(err3), UNITS);
+      printf("\nResults:\n"
+             "LO = (%.7e +- %.7e) %s\n"
+             "NLO = (%.7e +- %.7e) %s\n"
+             "NLO+NLL = (%.7e +- %.7e) %s\n",
+             res1, sqrt(err1), UNITS,
+             res2, sqrt(err2), UNITS,
+             res3, sqrt(err3), UNITS);
     }
 
-    // Prints results to a file for a subsequent analysis.
-    // The current format is JSON.
-    if (get_option("output_file") != "") {
-        FILE *fout = fopen(get_option("output_file").c_str(), "w");
+    // Prints results to a file in JSON format for a subsequent analysis.
+    if (get_option("output") != "") {
+        FILE *fout = fopen(get_option("output").c_str(), "w");
         if (!fout) {
             fprintf(stderr,
                     "error: Could not open output file %s.\n",
-                    get_option("output_file").c_str());
+                    get_option("output").c_str());
             return 1;
         }
         fprintf(fout, "{\n"                                        \
@@ -645,7 +979,7 @@ int main(int argc, char *argv[])
                 res3,
                 res4,
                 UNITS
-            );
+               );
     }
 
     return 0;

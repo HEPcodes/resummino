@@ -1,13 +1,13 @@
 // This file is part of Resummino.
 //
 // Copyright 2008-2010 Jonathan Debove.
-// Copyright 2011-2013 David R. Lamprea.
-// Copyright 2011-2013 Marcel Rothering.
+// Copyright 2011-2016 David R. Lamprea.
+// Copyright 2011-2016 Marcel Rothering.
 //
 // Licensed under the terms of the EUPL version 1.1 or later.
 // See the LICENCE file for more information.
 //
-// Implements the PDF module.
+// Implements the PDF module and the PDF fit (needed for Mellin space PDFs).
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,17 +17,23 @@
 #include "LHAPDF/LHAPDF.h"
 #include "utils.h"
 #include "pdf.h"
-#include "mth.h"
+#include "maths.h"
 
 using namespace std;
 
 #define NFLVR 5   // Number of active flavours.
-#define NDATA 800 // Number of data points for the fit [80:800].
+#define NDATA 1000 // Number of data points for the fit
 
-// Returns in g and q the values of the PDF of gluons and quarks at the value
-// of parameters x and Q^2 = Q2.
-void pdfX(double &g, double q[2][6], double x, double Q2)
-{
+// function used to sample the PDFs.
+double sampling(double xmin, double xmax,const size_t n, int i) {
+    return pow(xmin, 1.0 - (1.0 + (double)i) / (xmax + (double)n));
+    //return xmin + (double)i / (double)n * (xmax - xmin) - xmin;
+    //double step_size = (xmax - xmin)/(double)n;
+    //return(xmin + (double)i * step_size);
+
+}
+
+void pdfX(double &g, double q[2][6], double x, double Q2) {
     g = 0.0;
     for (int i0 = 0; i0 < 6; i0++) {
         q[0][i0] = 0.0;
@@ -51,10 +57,8 @@ void pdfX(double &g, double q[2][6], double x, double Q2)
     //q[1][5] = cpdf[0] / x;  // tbar
 }
 
-// Returns the PDFs in N-space for gluons and quarks in g and q.
 void pdfN(complex<double> &g, complex<double> q[2][6],
-          const complex<double> nm, double A[8][8])
-{
+          const complex<double> nm, double A[8][8]) {
     g = 0.0;
     for (size_t i0 = 0; i0 < 6; i0++) {
         q[0][i0] = 0.0;
@@ -62,19 +66,20 @@ void pdfN(complex<double> &g, complex<double> q[2][6],
     }
 
     complex<double> cpdf[8];
+
     // Convention: 0 = g, 1 = d valence, 2 = u valence, 3 = d sea, 4 = s sea,
     // 5 = b sea, 6 = u sea, 7 = c sea.
-    // f = A0 * x^A1 * (1 - x)^A2 * (1 + A3 * x^(1/2) + A4 * x + A5 * x^(3/2)
-    // + A6 * x^2 + A7 * x^(5/2)
-
+    // f = A0 * x^A1 * (1 - x)^A2 * ( 1 + A3 * x^(1/2) + A4 * x + A5 * x^(3/2)
+    // + A6 * x^2 + A7 * x^(5/2) )
     for (size_t i0 = 0; i0 < 8; i0++) {
-        cpdf[i0] = A[i0][0] *
-                   (Beta(A[i0][1] + nm, A[i0][2] + 1.0) +
-                    A[i0][3] * Beta(A[i0][1] + nm + 0.5, A[i0][2] + 1.0) +
-                    A[i0][4] * Beta(A[i0][1] + nm + 1.0, A[i0][2] + 1.0) +
-                    A[i0][5] * Beta(A[i0][1] + nm + 1.5, A[i0][2] + 1.0) +
-                    A[i0][6] * Beta(A[i0][1] + nm + 2.0, A[i0][2] + 1.0) +
-                    A[i0][7] * Beta(A[i0][1] + nm + 2.5, A[i0][2] + 1.0));
+        complex<double> y = A[i0][2] + 1.0;
+        cpdf[i0] = A[i0][0] * Gamma(y) *
+            (           beta_over_gamma(A[i0][1] + nm,       y) +
+             A[i0][3] * beta_over_gamma(A[i0][1] + nm + 0.5, y) +
+             A[i0][4] * beta_over_gamma(A[i0][1] + nm + 1.0, y) +
+             A[i0][5] * beta_over_gamma(A[i0][1] + nm + 1.5, y) +
+             A[i0][6] * beta_over_gamma(A[i0][1] + nm + 2.0, y) +
+             A[i0][7] * beta_over_gamma(A[i0][1] + nm + 2.5, y));
     }
     // See conventions in pdfX function.
     g = cpdf[0];
@@ -90,10 +95,8 @@ void pdfN(complex<double> &g, complex<double> q[2][6],
     q[1][4] = cpdf[7];
 }
 
-// Evolves PDFs in N-space.
 void pdfEvolve(complex<double> &gg, complex<double> qq[2][6],
-               complex<double> nm, complex<double> lmbd)
-{
+               complex<double> nm, complex<double> lmbd) {
     const int nf = NFLVR;
     const double dnf = (double)nf;
     const double beta0 = 5.5 - dnf / 3.0;
@@ -111,7 +114,7 @@ void pdfEvolve(complex<double> &gg, complex<double> qq[2][6],
     // Non singlet decomposition.
     complex<double> NS[6], VA[6];
     complex<double> tmp(0.0, 0.0);
-    double di0 = 0.;
+    double di0 = 0.0;
 
     for (int i0 = 0; i0 < 6; i0++) {
         NS[i0] = complex<double>(0.0, 0.0);
@@ -137,8 +140,8 @@ void pdfEvolve(complex<double> &gg, complex<double> qq[2][6],
     }
 
     complex<double> rp, rm;
-    rp = (Pgg + Pqq + sqrt(pow(Pgg - Pqq, 2) + 4.*Pgq * Pqg)) * 0.5;
-    rm = (Pgg + Pqq - sqrt(pow(Pgg - Pqq, 2) + 4.*Pgq * Pqg)) * 0.5;
+    rp = (Pgg + Pqq + sqrt(pow(Pgg - Pqq, 2) + 4.0 * Pgq * Pqg)) * 0.5;
+    rm = (Pgg + Pqq - sqrt(pow(Pgg - Pqq, 2) + 4.0 * Pgq * Pqg)) * 0.5;
 
     // Singlet decomposition and evolution
     complex<double> SI, GL;
@@ -162,7 +165,7 @@ void pdfEvolve(complex<double> &gg, complex<double> qq[2][6],
         qq[0][i0] = (1.0 / dnf * SI - 1.0 / di0 * NS[i0] + tmp + VA[i0]) * 0.5;
         qq[1][i0] = (1.0 / dnf * SI - 1.0 / di0 * NS[i0] + tmp - VA[i0]) * 0.5;
         tmp += 1.0 / di0 / (di0 - 1.0) * NS[i0];
-        di0 -= 1.;
+        di0 -= 1.0;
     }
 
     gg = GL;
@@ -176,8 +179,7 @@ struct data {
     double xr;
 };
 
-int expb_f(const gsl_vector *x, void *data, gsl_vector *f)
-{
+int expb_f(const gsl_vector *x, void *data, gsl_vector *f) {
     size_t n = ((struct data *)data)->n;
     double *y = ((struct data *)data)->y;
     double *sigma = ((struct data *)data)->sigma;
@@ -189,7 +191,8 @@ int expb_f(const gsl_vector *x, void *data, gsl_vector *f)
     }
 
     for (size_t i0 = 0; i0 < n; i0++) {
-        double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+      //double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+      double t = sampling(xr,1.0,n,i0);
         double Yi = A[0] * pow(t, A[1]) * pow(1.0 - t, A[2])
                     * (1.0 + A[3] * sqrt(t) + A[4] * t + A[5] * pow(t, 1.5)
                        + A[6] * pow(t, 2.0) + A[7] * pow(t, 2.5));
@@ -199,8 +202,7 @@ int expb_f(const gsl_vector *x, void *data, gsl_vector *f)
     return GSL_SUCCESS;
 }
 
-int expb_df(const gsl_vector *x, void *data, gsl_matrix *J)
-{
+int expb_df(const gsl_vector *x, void *data, gsl_matrix *J) {
     size_t n     = ((struct data *)data)->n;
     double *sigma = ((struct data *)data)->sigma;
     double xr    = ((struct data *)data)->xr;
@@ -211,7 +213,8 @@ int expb_df(const gsl_vector *x, void *data, gsl_matrix *J)
     }
 
     for (size_t i0 = 0; i0 < n; i0++) {
-        double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+      //double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+        double t = sampling(xr,1.0,n,i0);
         double s = sigma[i0];
         double e = A[0] * pow(t, A[1]) * pow(1.0 - t, A[2])
                    * (1.0 + A[3] * sqrt(t) + A[4] * t + A[5] * pow(t, 1.5)
@@ -231,20 +234,21 @@ int expb_df(const gsl_vector *x, void *data, gsl_matrix *J)
     return GSL_SUCCESS;
 }
 
-int expb_fdf(const gsl_vector *x, void *data, gsl_vector *f, gsl_matrix *J)
-{
+int expb_fdf(const gsl_vector *x, void *data, gsl_vector *f, gsl_matrix *J) {
     expb_f(x, data, f);
     expb_df(x, data, J);
 
     return GSL_SUCCESS;
 }
 
-void Fit(double A[8], double E[8], int flag, double xr, double Q2)
-{
+void Fit(double A[8], double E[8], int flag, double xr, double Q2, double weight_valence, double weight_sea, double weight_gluon, double xmin) {
     // Defines the function to minimize.
     const size_t n = NDATA;
     const size_t p = 8;
 
+    // we set xr to xmin
+    xr = xmin;
+    
     double y[NDATA], sigma[NDATA];
     struct data d = { n, y, sigma, xr };
 
@@ -257,8 +261,10 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
     f.params = &d;
 
     // PDFs to fit.
+    double gamma_weight = -1.6;
     for (size_t i0 = 0; i0 < n; i0++) {
-        double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+      //double t = pow(xr, 1.0 - (1.0 + (double)i0) / (1.0 + (double)n));
+      double t = sampling(xr,1.0,n,i0);
         double q[2][6];
         double g;
         double qq;
@@ -266,27 +272,35 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
         switch (flag) {
         case 0:
             qq = g;
+            gamma_weight = weight_gluon;
             break;
         case 1:
             qq = q[0][0] - q[1][0];
+            gamma_weight = weight_valence;
             break;
         case 2:
             qq = q[0][3] - q[1][3];
+            gamma_weight = weight_valence;
             break;
         case 3:
             qq = q[1][0];
+            gamma_weight = weight_sea;
             break;
         case 4:
             qq = q[1][1];
+            gamma_weight = weight_sea;
             break;
         case 5:
             qq = q[1][2];
+            gamma_weight = weight_sea;
             break;
         case 6:
             qq = q[1][3];
+            gamma_weight = weight_sea;
             break;
         case 7:
             qq = q[1][4];
+            gamma_weight = weight_sea;
             break;
         default:
             fprintf(stderr,
@@ -294,13 +308,14 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
             exit(1);
         }
         y[i0] = qq;
-        sigma[i0] = 1.0 / t; // DeFlorian-like pdf-weights t^(-1.6).
+        sigma[i0] = pow(t,gamma_weight); // DeFlorian-like pdf-weights t^(-1.6); DeJonathan t^(-1)
     }
 
     const gsl_multifit_fdfsolver_type *T;
     gsl_multifit_fdfsolver *s;
     T = gsl_multifit_fdfsolver_lmsder;
     s = gsl_multifit_fdfsolver_alloc(T, n, p);
+
 
     // First guess for the parameters.
     double x_init[8] = {1.0, -1.4, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -316,20 +331,23 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
     unsigned int iter = 0;
 
     // Does the fit.
-    while (status == GSL_CONTINUE && iter < 10000) {
+    while (status == GSL_CONTINUE && iter < 500000) {
         iter++;
         status = gsl_multifit_fdfsolver_iterate(s);
         if (status) {
             break;
         }
-        status = gsl_multifit_test_delta(s->dx, s->x, 1.e-14, 1.e-7);
+        status = gsl_multifit_test_delta(s->dx, s->x, 1.0e-12, 1.0e-5);
     }
 
     gsl_matrix *covar = gsl_matrix_alloc(p, p);
     gsl_multifit_covar(s->J, 0.0, covar);
-    double c = pow(gsl_blas_dnrm2(s->f), 2) / ((double)(n - p));
-    c = (c > 1.0 ? c : 1.0);
-
+    //double c = pow(gsl_blas_dnrm2(s->f), 2) / ((double)(n - p));
+    //c = (c > 1.0 ? c : 1.0);
+    double chi = gsl_blas_dnrm2(s->f);
+    double dof = n - p;
+    double c = GSL_MAX_DBL(1, chi / sqrt(dof));
+    
     // Gets parameters.
     for (size_t i0 = 0; i0 < 8; i0++) {
         A[i0] = 0.0;
@@ -341,18 +359,19 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
         E[i0] = c * gsl_matrix_get(covar, i0, i0);
     }
 
+    
+    printf("#chisq/dof = %g\n",  pow(chi, 2.0) / dof);
+    printf ("#status = %s\n", gsl_strerror (status));
+
     gsl_multifit_fdfsolver_free(s);
     gsl_matrix_free(covar);
 }
 
-void pdfFit(double & A1MIN, double A[8][8], double tau, double Q2)
-{
+void pdfFit(double &A1MIN, double A[8][8], double tau, double Q2, double weight_valence, double weight_sea, double weight_gluon, double xmin) {
     const int nf = NFLVR;
-    fprintf(stderr,
-            "Performing PDF fit with %d flavors with M^2/S = %g, Q^2 = %g\n",
-            nf, tau, Q2);
+    fprintf(stderr,"Performing PDF fit with %d flavors with M^2/S = %g, Q^2 = %g\n and weights: valence: x^%g, sea: x^%g, gluon: x^%g and xmin = %g \n Fit function: f = A0 * x^A1 * (1 - x)^A2 * ( 1 + A3 * x^(1/2) + A4 * x + A5 * x^(3/2) + A6 * x^2 + A7 * x^(5/2) )\n", nf, tau, Q2, weight_valence, weight_sea, weight_gluon, xmin);
 
-    for (size_t i0 = 0; i0 < 8; i0++) {
+    for (int i0 = 0; i0 < 8; i0++) {
         double err[8];
         switch (i0) {
         case 0:
@@ -381,11 +400,13 @@ void pdfFit(double & A1MIN, double A[8][8], double tau, double Q2)
             break;
         }
         fflush(stderr);
-        Fit(A[i0], err, i0, tau, Q2); // tau = M^2/S and Q2 = mu_F^2.
+        //Fit(A[i0], err, i0, tau, Q2); // tau = M^2/S and Q2 = mu_F^2.
+        Fit(A[i0], err, i0, tau, Q2, weight_valence,  weight_sea,  weight_gluon, xmin); 
         fprintf(stderr, " done.\n");
         fprintf(stderr, "Fit result:\n");
-        for (size_t i1 = 0; i1 < 8; i1++) {
-            fprintf(stderr, "%.5f %.5f\n", A[i0][i1], err[i1]);
+
+        for (int i1 = 0; i1 < 8; i1++) {
+          fprintf(stderr, "A%i =  %.5f # +-%.5f\n",i1, A[i0][i1], err[i1]);
         }
         if (A[i0][1] < A1MIN) {
             A1MIN = A[i0][1];

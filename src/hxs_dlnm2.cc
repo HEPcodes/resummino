@@ -1,79 +1,65 @@
 // This file is part of Resummino.
 //
 // Copyright 2008-2010 Jonathan Debove.
-// Copyright 2011-2013 David R. Lamprea.
-// Copyright 2011-2013 Marcel Rothering.
+// Copyright 2011-2016 David R. Lamprea.
+// Copyright 2011-2016 Marcel Rothering.
 //
 // Licensed under the terms of the EUPL version 1.1 or later.
 // See the LICENCE file for more information.
-//
-// Computes the hadronic cross section invariant-mass distribution at LO,
-// NLO (collinear, virtual, gluon emission and quark emission) and NLL.
 
 #include <cmath>
 #include <complex>
 #include <iostream>
 #include <cstdlib>
-#include "gsl_all.h"
-#include "prm.h"
 #include "utils.h"
+#include "gsl_all.h"
+#include "params.h"
 #include "pxs.h"
 #include "pdf.h"
+#include "integration_method.h"
+#include "dipoles.h"
 
+using namespace std;
 #define CMLLN 0.9 // C coeff. of the inverse Mellin transform
 #define VBSSL 2.9 // V coeff. of the inverse Bessel transform
 #define PT2CUT 0.0 // pt2 cut for the integration (non-zero for joint resummation)
 
-static inline double kln(double x, double y, double z)
-{
-    return std::sqrt(std::pow(x, 2) + std::pow(y, 2) + std::pow(z, 2)
-                     - 2.*x * y - 2.*y * z - 2.*z * x);
-}
-
-double dPS2_dlnM2(double &xa, double &xb, double &t, double *x, Parameters *Params)
-{
-    const double sh = Params->sh;
-    //old: const double m1 = Params->mCH[Params->out1];
-    //old: const double m2 = Params->mCH[Params->out2];
+// two-particle phase space used for LO and virtual corrections
+double dPS2_dlnM2(double &xa, double &xb, double &t, double *x, Parameters *params) {
+    const double sh = params->sh;
 
     double m1;
     double m2;
 
-    if (Params->out1 < 10) {
-        m1 = Params->mCH[Params->out1];
-        m2 = Params->mCH[Params->out2];
-    }
+    SET_MASS;
 
-    else  if (Params->out1 >= 10 && Params->out1 < 20) {
-        m1 = Params->mSL[Params->out1 - 10];
-        m2 = Params->mSL[Params->out2 - 10];
-    }
+    const double m1s = pow(m1, 2);
+    const double m2s = pow(m2, 2);
+    
+    // at LO s is the invariant mass (pa + pb)^2 = (p1 + p2)^2
+    const double s = params->mis;
 
-
-    const double m1s = std::pow(m1, 2);
-    const double m2s = std::pow(m2, 2);
-    const double s = Params->mis;
-
-    if (s < std::pow(m1 + m2, 2)) {
-        std::cout << "dPS2_dlnM2: M2 too small\n";
+    // minimum and maximum invariant mass squared
+    if (s < pow(m1 + m2, 2)) {
+        cout << "dPS2_dlnM2: M2 too small\n";
         exit(0);
     } else if (s > sh) {
-        std::cout << "dPS2_dlnM2: M2 too large\n";
+        cout << "dPS2_dlnM2: M2 too large\n";
         exit(1);
     }
 
     // Jacobian initialization
-    double djac = 389379304.;
+    double djac = 389379304.0;
 
     // Integration variable xa
     double xamin = s / sh;
-    double xamax = 1.;
-    if (xamin == 0.) {
+    double xamax = 1.0;
+    if (xamin == 0.0) {
         xa = (xamax - xamin) * x[0] + xamin;
         djac *= xamax - xamin;
     } else {
-        xa = xamin * std::pow(xamax / xamin, x[0]);
-        djac *= xa * std::log(xamax / xamin);
+        xa = xamin * pow(xamax / xamin, x[0]);
+        djac *= xa * log(xamax / xamin);
     }
 
     // Getting xb
@@ -86,70 +72,71 @@ double dPS2_dlnM2(double &xa, double &xb, double &t, double *x, Parameters *Para
     djac *= tmax - tmin;
 
     // Phase Space factor
+    // ( dsigma / dxb = (dsigma / dlnMs) (dlnMs / dxb) = dsigma / dlnMs dln(xa xb S) / dxb)
+    // -> d sigma / dlnMs = d sigma/ dxb * xb (that is the reason for the xb factor in the jacobian)
     djac *= 0.125 * M_1_PI / s * xb;
 
     return djac;
 }
 
+// Phase space for real collinear emission.
 double dPS2C_dlnM2(double &djacdelta, double &djacplus,
                    double &xa, double &xb, double &xc,
-                   double &tc, double *x, Parameters *Params)
-{
-    const double sh = Params->sh;
-    //old:  const double m1 = Params->mCH[Params->out1];
-    //old:  const double m2 = Params->mCH[Params->out2];
+                   double &tc, double *x, Parameters *params) {
+    const double sh = params->sh;
 
+    // initialize final state masses
     double m1;
     double m2;
 
-    if (Params->out1 < 10) {
-        m1 = Params->mCH[Params->out1];
-        m2 = Params->mCH[Params->out2];
-    }
+    // macro to set masses of the final state particles
+    SET_MASS;
 
-    else  if (Params->out1 >= 10 && Params->out1 < 20) {
-        m1 = Params->mSL[Params->out1 - 10];
-        m2 = Params->mSL[Params->out2 - 10];
-    }
+    const double m1s = pow(m1, 2);
+    const double m2s = pow(m2, 2);
 
-    const double m1s = std::pow(m1, 2);
-    const double m2s = std::pow(m2, 2);
-    const double mis = Params->mis;
+    // the invariant mass squared
+    const double mis = params->mis;
 
-    if (mis < std::pow(m1 + m2, 2)) {
-        std::cout << "dPS2d_dlnM2: M2 too small\n";
+    if (mis < pow(m1 + m2, 2)) {
+        cout << "dPS2d_dlnM2: M2 too small\n";
         exit(0);
     } else if (mis > sh) {
-        std::cout << "dPS2d_dlnM2: M2 too large\n";
+        cout << "dPS2d_dlnM2: M2 too large\n";
         exit(1);
     }
 
-    // Jacobian initialization
-    double djac = 389379304.;
+    // Jacobian initialization.
+    double djac = 389379304.0;
 
-    // Integration variable xa and xb
+    // Integration variable xa and xb.
     double xamin = mis / sh;
-    double xamax = 1.;
+    double xamax = 1.0;
     double xcmin = xamin;
-    double xcmax = 1.;
-    if (xamin == 0.) {
+    double xcmax = 1.0;
+
+    // mapping to interval [0:1]
+    if (xamin == 0.0) {
         xa = (xamax - xamin) * x[0] + xamin;
         djac *= xamax - xamin;
-        xcmin /= xa;
-        djacdelta = djac;
+        xcmin /= xa; // -> xcmin = M^2/ (sh * xa) = xb * M^2 / s = xb * xc := z
+        djacdelta = djac; // no x[1] contribution
         xc = (xcmax - xcmin) * x[1] + xcmin;
         djac *= xcmax - xcmin;
     } else {
-        xa = xamin * std::pow(xamax / xamin, x[0]);
-        djac *= xa * std::log(xamax / xamin);
+        xa = xamin * pow(xamax / xamin, x[0]);
+        djac *= xa * log(xamax / xamin);
         xcmin /= xa;
         djacdelta = djac;
-        xc = xcmin * std::pow(xcmax / xcmin, x[1]);
-        djac *= xc * std::log(xcmax / xcmin);
+        xc = xcmin * pow(xcmax / xcmin, x[1]);
+        djac *= xc * log(xcmax / xcmin);
     }
 
+    // we do not integrate over xb.
+    // xb chosen in such a way that M^2 is fixed.
     xb = xamin / xa / xc;
 
+    // sc = xc s is the squared invariant mass of the two final state particles
     const double sc = mis;
 
     // Integration variable tc
@@ -160,523 +147,1241 @@ double dPS2C_dlnM2(double &djacdelta, double &djacplus,
     djac     *= tcmax - tcmin;
 
     // Phase Space factor
+    // similar to dPS2C in hxs.cc we have three different phase space factors
     djacdelta *= 0.125 * M_1_PI / sc * xb * xc;
-    djac     *= 0.125 * M_1_PI / sc * xb;
+    djac     *= 0.125 * M_1_PI / sc * xb; // no xc contribution, see above
     djacplus  = djac * xc;
 
     return djac;
 }
 
+// Three-particle phase space.
 double dPS3_dlnM2(double &xa, double &xb, double &M2, double &pt2,
-                  double &Tp, double &Pp, double *x, Parameters *Params)
-{
-    const double sh = Params->sh;
-    //old: const double m1 = Params->mCH[Params->out1];
-    //old: const double m2 = Params->mCH[Params->out2];
+                  double &Tp, double &Pp, double *x, Parameters *params) {
+    const double sh = params->sh;
 
+    // massive final state masses
     double m1;
     double m2;
 
-    if (Params->out1 < 10) {
-        m1 = Params->mCH[Params->out1];
-        m2 = Params->mCH[Params->out2];
-    }
+    // macro 
+    SET_MASS;
 
-    else  if (Params->out1 >= 10 && Params->out1 < 20) {
-        m1 = Params->mSL[Params->out1 - 10];
-        m2 = Params->mSL[Params->out2 - 10];
-    }
+    const double m1s = pow(m1, 2);
+    const double m2s = pow(m2, 2);
 
-    const double m1s = std::pow(m1, 2);
-    const double m2s = std::pow(m2, 2);
-    M2 = Params->mis;
+    // invariant mass squared
+    M2 = params->mis;
 
-    if (M2 < std::pow(m1 + m2, 2)) {
-        std::cout << "dPS3_dlnM2: M2 too small\n";
+    // check minimal and maximal M^2 value
+    if (M2 < pow(m1 + m2, 2)) {
+        cout << "dPS3_dlnM2: M2 too small\n";
         exit(0);
     } else if (M2 > sh) {
-        std::cout << "dPS3_dlnM2: M2 too large\n";
+        cout << "dPS3_dlnM2: M2 too large\n";
         exit(0);
     }
 
-    // Jacobian initialization
-    double djac = 389379304.;
+    // Jacobian initialization.
+    // Conversion factor from GeV^-2 to pb.
+    double djac = 389379304.0;
 
-    // Integration variable xa, xb
+    // Integration variable xa, xb.
     double xamin = M2 / sh;
-    double xamax = 1.;
+    double xamax = 1.0;
     double xbmin = xamin;
-    double xbmax = 1.;
-    if (xamin == 0.) {
+    double xbmax = 1.0;
+
+    // Mapping to interval [0:1].
+    if (xamin == 0.0) {
         xa = (xamax - xamin) * x[0] + xamin;
         djac *= xamax - xamin;
         xbmin /= xa;
         xb = (xbmax - xbmin) * x[1] + xbmin;
         djac *= xbmax - xbmin;
     } else {
-        xa = xamin * std::pow(xamax / xamin, x[0]);
-        djac *= xa * std::log(xamax / xamin);
+        xa = xamin * pow(xamax / xamin, x[0]);
+        djac *= xa * log(xamax / xamin);
         xbmin /= xa;
-        xb = xbmin * std::pow(xbmax / xbmin, x[1]);
-        djac *= xb * std::log(xbmax / xbmin);
+        xb = xbmin * pow(xbmax / xbmin, x[1]);
+        djac *= xb * log(xbmax / xbmin);
     }
 
     const double s = xa * xb * sh;
 
-    // Integration variable pt2
+    // Integration variable pt2.
     const double pt2min = PT2CUT;
-    const double pt2max = .25 * std::pow(s - M2, 2) / s;
+    const double pt2max = .25 * pow(s - M2, 2) / s;
     if (pt2max < pt2min) {
-        return 0.;
+        return 0.0;
     }
     pt2 = (pt2max - pt2min) * x[2] + pt2min;
     djac *= pt2max - pt2min;
 
-    // Integration variable Tp
-    const double Tpmin = 0.;
+    // Integration variable Tp.
+    const double Tpmin = 0.0;
     const double Tpmax = M_PI;
     Tp = (Tpmax - Tpmin) * x[3] + Tpmin;
     djac *= Tpmax - Tpmin;
 
-    // Integration variable Pp
-    const double Ppmin = 0.;
+    // Integration variable Pp.
+    const double Ppmin = 0.0;
     const double Ppmax = M_PI;
-    djac *= 2.;
+    djac *= 2.0;
     Pp = (Ppmax - Ppmin) * x[4] + Ppmin;
     djac *= Ppmax - Ppmin;
 
-    // Phase Space factor
-    djac *= kln(M2, m1s, m2s) * std::sin(Tp)
-            / std::sqrt(std::pow(s - M2, 2) - 4.*s * pt2) / std::pow(4.*M_PI, 4);
+    // Phase Space factor.
+    djac *= kln(M2, m1s, m2s) * sin(Tp)
+        / sqrt(pow(s - M2, 2) - 4.0 * s * pt2) / pow(4.0 * M_PI, 4);
 
     return djac;
 }
 
-double IB_dlnM2(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, t;
-    const double djac = dPS2_dlnM2(xa, xb, t, x, jp);
-    const double s = xa * xb * jp->sh;
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:     if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += Born(s, t, jp) *
-                       (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1]);
-            }
-        }
-    }
-    // Flux, symmetry factor, spin and color average
-    return dij / 24. / s * sig * djac;
-}
-
-double IV_dlnM2(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, t;
-    const double djac = dPS2_dlnM2(xa, xb, t, x, jp);
-    const double s = xa * xb * jp->sh;
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:    if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1])
-                       * (Virt(s, t, jp) + DipI(s, t, jp));
-            }
-        }
-    }
-    // Flux, symmetry factor, spin and color average
-    return dij / 24. / s * sig * djac * 4. / 3.*aS(jp->murs, jp->set);
-}
-
-
-double IC_dlnM2(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double djacdelta, djacplus, xa, xb, xc, tc;
-    const double djac = dPS2C_dlnM2(djacdelta, djacplus, xa, xb, xc, tc, x, jp);
-    const double sc = jp->mis;
-    const double xd = xb * xc;
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-    double gd, qd[2][6];
-    pdfX(gd, qd, xd, jp->mufs);
-
-    double sig = 0.;
-    double z = xb * xc;
-
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:   if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4) {
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                // Pqq and Kqq
-                sig += (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1] +
-                        qb[0][i0] * qa[1 - jp->ic][i1] + qa[jp->ic][i0] * qb[1][i1]) *
-                       (-(1. + std::pow(xc, 2)) / (1. - xc) * std::log(jp->mufs / sc * xc)
-                        + 2.*(2. / (1. - xc) - 1. - xc) * std::log(1. - xc) + 1. - xc
-                       ) * Born(sc, tc, jp) * djac * 4. / 3.;
-
-                sig += (qa[0][i0] * qd[1 - jp->ic][i1] + qd[jp->ic][i0] * qa[1][i1] +
-                        qd[0][i0] * qa[1 - jp->ic][i1] + qa[jp->ic][i0] * qd[1][i1]) *
-                       (((1. + std::pow(xc, 2)) / (1. - xc) * std::log(jp->mufs / sc)
-                         - 4. / (1. - xc) * std::log(1. - xc))
-                       ) * Born(sc, tc, jp) * djacplus * 4. / 3.;
-
-                sig += (qa[0][i0] * qd[1 - jp->ic][i1] + qd[jp->ic][i0] * qa[1][i1]) *
-                    + (-pow2(M_PI) / 6.0 - (.5 * z * z + z + 2.*log(1. - z)) * log(jp->mufs / sc)
-                       + 2.*pow2(log(1. - z))) * djacdelta
-                    * Born(sc, tc, jp) * 8.0 / 3.0;
-
-                // Pgq, Kgq, Pgqb, Kgqb
-                sig += (qa[0][i0] * gb + qb[jp->ic][i0] * ga +
-                        qa[1][i1] * gb + qb[1 - jp->ic][i1] * ga) *
-                       (-(std::pow(xc, 2) + std::pow(1. - xc, 2)) *
-                        std::log(jp->mufs / sc * xc / std::pow(1. - xc, 2))
-                        + 2.*xc * (1. - xc)) * Born(sc, tc, jp) * djac * .5;
-            }
-        }
-    }
-
-    // Flux, symmetry factor, spin and color average
-    return dij / 24.*sig * aS(jp->murs, jp->set) / sc;
-}
-
-// No dipoles -> cf. addition to joint res.
-double IG_dlnM2j(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, mi2, pt2, th, ph;
-    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, jp);
-    const double s = xa * xb * jp->sh;
-    if (djac == 0.) {
-        return 0.;
-    }
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:   if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1]) *
-                       (RealG(s, mi2, pt2, th, ph, 0, jp) +
-                        RealG(s, mi2, pt2, th, ph, 1, jp));
-            }
-        }
-    }
-    // Flux, symmetry factor, spin and color average
-    return dij * std::pow(M_PI, 2) / 4.5 / s * sig * djac * aS(jp->murs, jp->set);
-
-}
-
-double IG_dlnM2(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, mi2, pt2, th, ph;
-    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, jp);
-    const double s = xa * xb * jp->sh;
-    if (djac == 0.) {
-        return 0.;
-    }
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:  if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1]) *
-                       (RealG(s, mi2, pt2, th, ph, 0, jp) +
-                        RealG(s, mi2, pt2, th, ph, 1, jp) -
-                        DipGA(s, mi2, pt2, th, ph, 0, jp) -
-                        DipGA(s, mi2, pt2, th, ph, 1, jp) -
-                        DipGB(s, mi2, pt2, th, ph, 0, jp) -
-                        DipGB(s, mi2, pt2, th, ph, 1, jp)
-                       );
-            }
-        }
-    }
-    // Flux, symmetry factor, spin and color average
-    return dij * std::pow(M_PI, 2) / 4.5 / s * sig * djac * aS(jp->murs, jp->set);
-
-}
-
-double IQ_dlnM2(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, mi2, pt2, th, ph;
-    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, jp);
-    const double s = xa * xb * jp->sh;
-    if (djac == 0.) {
-        return 0.;
-    }
-
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:    if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4) {
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += (qa[0][i0] * gb + qb[jp->ic][i0] * ga) *
-                       (RealQ(s, mi2, pt2, th, ph, 0, jp) +
-                        RealQ(s, mi2, pt2, th, ph, 1, jp) -
-                        DipQB(s, mi2, pt2, th, ph, 0, jp) -
-                        DipQB(s, mi2, pt2, th, ph, 1, jp));
-                sig += (qa[1][i1] * gb + qb[1 - jp->ic][i1] * ga) *
-                       (RealQB(s, mi2, pt2, th, ph, 0, jp) +
-                        RealQB(s, mi2, pt2, th, ph, 1, jp) -
-                        DipQA(s, mi2, pt2, th, ph, 0, jp) -
-                        DipQA(s, mi2, pt2, th, ph, 1, jp));
-            }
-        }
-    }
-
-    // Flux, symmetry factor, spin and color average
-    return dij * std::pow(M_PI, 2) / 12. / s * sig * djac * aS(jp->murs, jp->set);
-}
-
-// No dipoles -> cf. addition to the joint
-double IQ_dlnM2j(double *x, size_t dim, void *jj)
-{
-    Parameters *jp = (Parameters *)jj; // conversion of type void* into IOS*
-    double xa, xb, mi2, pt2, th, ph;
-    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, jp);
-    const double s = xa * xb * jp->sh;
-    if (djac == 0.) {
-        return 0.;
-    }
-    double dij = 1.;
-    if (jp->out1 == jp->out2 && jp->out1 / 4 == 0) {
-        dij = .5;
-    }
-
-    double ga, qa[2][6];
-    pdfX(ga, qa, xa, jp->mufs);
-    double gb, qb[2][6];
-    pdfX(gb, qb, xb, jp->mufs);
-
-    double sig = 0.;
-    // Sum over all possible initial states
-    for (int i0 = 0; i0 < 5; i0++) {
-        for (int i1 = 0; i1 < 5; i1++) {
-            // Set initial state
-            jp->in1 = i0;
-            jp->in2 = i1;
-            // Test charge conservation
-            //old:  if (jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4) {
-            if ((jp->out1 < 10 && jp->in1 / 3 - jp->in2 / 3 == jp->out1 / 4 - jp->out2 / 4)
-                    || (jp->out1 >= 10 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 10) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out1 >= 16 && jp->out1 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 10) / 3)
-
-
-                    || (jp->out2 >= 16 && jp->out2 < 20
-                        && jp->in1 / 3 - jp->in2 / 3 == (jp->out1 - 13) / 3 - (jp->out2 - 13) / 3)) {
-                sig += (qa[0][i0] * gb + qb[jp->ic][i0] * ga) *
-                       (RealQ(s, mi2, pt2, th, ph, 0, jp) +
-                        RealQ(s, mi2, pt2, th, ph, 1, jp));
-                sig += (qa[1][i1] * gb + qb[1 - jp->ic][i1] * ga) *
-                       (RealQB(s, mi2, pt2, th, ph, 0, jp) +
-                        RealQB(s, mi2, pt2, th, ph, 1, jp));
-            }
-        }
-    }
-
-    // Flux, symmetry factor, spin and color average
-    return dij * std::pow(M_PI, 2) / 12. / s * sig * djac * aS(jp->murs, jp->set);
-}
-
-double IR_dlnM2(double *x, size_t dim, void *prm)
-{
-    Parameters *jp = (Parameters *)prm; // conversion of type void* into IOS*
-
-    const double sh = jp->sh;
-    //old: const double m1 = jp->mCH[jp->out1];
-    //old: const double m2 = jp->mCH[jp->out2];
+// Three-particle phase space used for on-shell subtraction for the
+// associated production of gauginos and gluinos.
+// Here s2 = s23 can be on-shell. s1 is the usual M^2.
+// (Reference: Particle kinematics - Byckling, Kajantie)
+// (Helicity frame.)
+double dPS3_ONSHELL23_dlnM2(double &xa, double &xb, double &s2, double &t1,
+                double &s1, double &phi, double *x, Parameters *params) {
+
+    // Hadronic com energy.
+    const double sh = params->sh;
+
+    // Final state masses.
     double m1;
     double m2;
 
-    if (jp->out1 < 10) {
-        m1 = jp->mCH[jp->out1];
-        m2 = jp->mCH[jp->out2];
+    // Macro which sets m1 and m2 (see utils.h).
+    SET_MASS;
+
+    const double m1s = pow2(m1);
+    const double m2s = pow2(m2);    
+
+    // Invariant mass.
+    double M2;
+    M2 = params->mis;
+    s1 = M2; // s1 is the invariant mass squared.
+
+    // Check minimal and maximal M^2 value.
+    if (M2 < pow(m1 + m2, 2)) {
+        cout << "dPS3_dlnM2: M2 too small\n";
+        exit(0);
+    } else if (M2 > sh) {
+        cout << "dPS3_dlnM2: M2 too large\n";
+        exit(0);
     }
 
-    else  if (jp->out1 >= 10 && jp->out1 < 20) {
-        m1 = jp->mSL[jp->out1 - 10];
-        m2 = jp->mSL[jp->out2 - 10];
+    // Initialize jacobian.
+    double djac = 1.0;
+    // Conversion factor from GeV^-2 to pb.
+    djac = djac * 389379304.0;
+
+    // Integration variable xa, xb and s1
+    double xamin = M2 / sh;
+    double xamax = 1.0;
+    double xbmin = xamin;
+    double xbmax = 1.0;
+
+    // Mapping to interval [0:1].
+    if (xamin == 0.0) {
+        xa = (xamax - xamin) * x[0] + xamin;
+        djac *= xamax - xamin;
+        xbmin /= xa;
+        xb = (xbmax - xbmin) * x[1] + xbmin;
+        djac = djac * ( xbmax - xbmin);  
+    } else {
+        xa = xamin * pow(xamax / xamin, x[0]);
+        djac *= xa * log(xamax / xamin);
+        xbmin /= xa;
+        xb = xbmin * pow(xbmax / xbmin, x[1]);
+        djac = djac *  xb * log(xbmax / xbmin);
     }
 
-    const double m1s = std::pow(m1, 2);
-    const double m2s = std::pow(m2, 2);
-    double s = jp->mis;
+    // Partonic com energy.
+    const double s = xa * xb * sh;
 
-    if (s < std::pow(m1 + m2, 2)) {
-        std::cout << "IvMlln: M2 too small\n";
+    // s2 = s23 = (p2 + p3)^2.
+    double s2min = m2s;
+    double s2max = pow2(sqrt(s) - m1);
+
+    // Check if phase space point is physical.
+    if (s2max < s2min) {
+        djac = 0.0;
+        return djac;
+    }
+    // Mapping to [0:1] if Breit Mapping is deactivated.
+    // if (params->deg_squarks == true) {
+    //   double z4p = atan((s2max - params->mSQs[0])/(params->mSQs[0] * 1.0E-2));
+    //   double z4m = atan((s2min - params->mSQs[0])/(params->mSQs[0] * 1.0E-2));
+    //   double y = (z4p - z4m) * x[2] + z4m;
+    //   s2 = params->mSQs[0] + params->mSQs[0] * 1.0E-2 * tan(y);
+    //   djac = djac * params->mSQs[0] * 1.0E-2 * (z4p - z4m)
+    //     * 1.0/pow2(cos(z4m - x[2] * z4m + x[2] * z4p));
+    // } else {
+      if (s2max == 0.0 || s2min == 0.0) { // actually can never happen :D
+        s2 = (s2max - s2min) * x[2] + s2min;
+        djac = djac * (s2max - s2min);
+      } else {
+        // log mapping
+        s2 = s2min * pow(s2max / s2min, x[2]);
+        djac *= s2 * log(s2max / s2min);
+      }
+      //    }
+
+    // Integration over t1 = (pa - p2)^2
+    double t1min;
+    double t1max;
+    t1min = -.5 * (s - m1s - s2 + kln(s, s2, m1s));
+    t1max = t1min + kln(s, s2, m1s);
+    t1 = (t1max - t1min) * x[3] + t1min;
+    djac = djac * (t1max - t1min);    
+
+    // calculating limits for s1 to check if phase space point is physical.
+    double s1min = m1s + m2s + 1.0 / (2.0 * s2) * (s - s2 - m1s) * (s2 + m2s)
+        - 1.0/(2.0 * s2) * (kln(s,s2,m1s) * kln(s2,m2s,0));
+    double s1max = m1s + m2s + 1.0 / (2.0 * s2) * (s - s2 - m1s) * (s2 + m2s)
+        + 1.0/(2.0 * s2) * (kln(s,s2,m1s) * kln(s2,m2s,0));
+    if (s1min > M2 || s1max < M2 || Rkln(s,s2,m1s) < 0.0 || Rkln(s2,m2s,0) < 0.0) {
+        djac = 0.0;
+        return  djac;
+    }
+
+    // Integration over azimuthal angle.    
+    double phimin = 0.0;
+    double phimax = 2.0 * M_PI;
+    phi = (phimax - phimin) * x[4] + phimin;
+    djac = djac * (phimax - phimin);
+
+    // Normalization factor.
+    djac = djac / pow((2.0 * M_PI),5); 
+    // kln(s,0,0) for the flux factor
+    double sqrt_lambda = s;
+
+    // Final jacobian. (note: kln is sqrt(kaellen))
+    djac = djac * M_PI / (2.0 * sqrt_lambda )  / (4.0 * kln(s,s2,m1s));
+
+    // check if phase space point is physical.
+    if (Rkln(s,s2,m1s) < 0.0 ||  Rkln(s2,m2s,0) < 0.0) {
+        djac = 0.0;
+    }
+
+    return djac;
+}
+
+// Three-particle phase space used for on-shell subtraction for the
+// associated production of gauginos and gluinos.
+// Here s2 = s13 can be on-shell. s1 = s12 is the usual M2.
+// same as dPS3_ONSHELL23_dlnM2, but p1 <-> p2;
+double dPS3_ONSHELL13_dlnM2(double &xa, double &xb, double &s2, double &t1,
+                double &s1, double &phi, double *x, Parameters *params) {
+
+    const double sh = params->sh;
+
+    double m1;
+    double m2;
+
+    SET_MASS;
+
+    const double m1s = pow2(m1);
+    const double m2s = pow2(m2);    
+
+    double M2;
+    M2 = params->mis;
+    s1 = M2;
+
+    if (M2 < pow(m1 + m2, 2)) {
+        cout << "dPS3_dlnM2: M2 too small\n";
+        exit(0);
+    } else if (M2 > sh) {
+        cout << "dPS3_dlnM2: M2 too large\n";
+        exit(0);
+    }
+
+    double djac = 1.0;
+    // Conversion factor from GeV^-2 to pb.
+    djac = djac * 389379304.0;
+
+    // Integration variable xa, xb and s1
+    double xamin = M2 / sh;
+    double xamax = 1.0;
+    double xbmin = xamin;
+    double xbmax = 1.0;
+
+if (xamin == 0.0) {
+        xa = (xamax - xamin) * x[0] + xamin;
+        djac *= xamax - xamin;
+        xbmin /= xa;
+        xb = (xbmax - xbmin) * x[1] + xbmin;
+        djac = djac * ( xbmax - xbmin);  
+    } else {
+        xa = xamin * pow(xamax / xamin, x[0]);
+        djac *= xa * log(xamax / xamin);
+        xbmin /= xa;
+        xb = xbmin * pow(xbmax / xbmin, x[1]);
+        djac = djac *  xb * log(xbmax / xbmin);
+    }
+
+    const double s = xa * xb * sh;
+
+    // integration over s2 and t1
+    double s2min = m1s;
+    double s2max = pow2(sqrt(s) - m2);
+    if (s2max < s2min) {
+        djac = 0.0;
+        return djac;
+    }
+
+    // different mapping of s2
+    // if (params->deg_squarks == true) {
+    //   double z4p = atan((s2max - params->mSQs[0])/(params->mSQs[0] * 1.0E-2));
+    //   double z4m = atan((s2min - params->mSQs[0])/(params->mSQs[0] * 1.0E-2));
+    //   double y = (z4p - z4m) * x[2] + z4m;
+    //   s2 = params->mSQs[0] + params->mSQs[0] * 1.0E-2 * tan(y);
+    //   djac = djac * params->mSQs[0] * 1.0E-2 * (z4p - z4m)
+    //     * 1.0/pow2(cos(z4m - x[2] * z4m + x[2] * z4p)); 
+    // } else {
+      if (s2max == 0.0 || s2min == 0.0) { // actually can never happen :D
+        s2 = (s2max - s2min) * x[2] + s2min;
+        djac = djac * (s2max - s2min);
+      } else {
+        // log mapping
+        s2 = s2min * pow(s2max / s2min, x[2]);
+        djac *= s2 * log(s2max / s2min);
+      }
+      //    }
+
+    // Integration over t1.
+    double t1min;
+    double t1max;
+    t1min = -.5 * (s - m2s - s2 + kln(s, s2, m2s));
+    t1max = t1min + kln(s, s2, m2s);
+    t1 = (t1max - t1min) * x[3] + t1min;
+    djac = djac * (t1max - t1min);        
+
+    // Check if phase space point is physical.
+    double s1min = m1s + m2s + 1.0 / (2.0 * s2) * (s - s2 - m2s) * (s2 + m1s)
+        - 1.0/(2.0 * s2) * (kln(s,s2,m2s) * kln(s2,m1s,0));
+    double s1max = m1s + m2s + 1.0 / (2.0 * s2) * (s - s2 - m2s) * (s2 + m1s)
+        + 1.0/(2.0 * s2) * (kln(s,s2,m2s) * kln(s2,m1s,0));
+
+    if ( s1min > M2 || s1max < M2 || Rkln(s,s2,m2s) < 0.0 || Rkln(s2,m1s,0) < 0.0  ) {
+        djac = 0.0;
+
+        return  djac;
+    }
+  
+    // Integration over azimuthal angle.
+    double phimin = 0.0;
+    double phimax = 2.0 * M_PI;
+
+    phi = (phimax - phimin) * x[4] + phimin;
+    djac = djac * (phimax - phimin);
+
+    // Normalization factor.
+    djac = djac / pow((2.0 * M_PI),5); 
+
+    // For the flux factor.
+    double sqrt_lambda = s;
+
+    // Final jacobian.
+    djac = djac * M_PI / (2.0 * sqrt_lambda )  / (4.0 * kln(s,s2,m2s));
+
+    // Check if physical.
+    if (Rkln(s,s2,m2s) < 0.0 ||  Rkln(s2,m1s,0) < 0.0) {
+        djac = 0.0;
+    }
+
+    return djac;
+}
+
+// Setting up the different integrands.
+
+// Born
+double IB_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj; // creating an instance of the parameter class
+
+    // setting the needed variables xa,xb,t and s for a specific integration point x (array)
+    double xa, xb, t;
+    const double djac = dPS2_dlnM2(xa, xb, t, x, params);
+    const double s = xa * xb * params->sh;
+
+    // Symmetry factor for two neutralinos in the final state.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = 0.5;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    // initialize the cross section.
+    double sig = 0.0;
+
+    // Sum over all possible initial states.
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state.
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Check if charge is conserved.
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * born_gagl(s, t, params);
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * born_sleptons(s, t, params);
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * born_gauginos(s, t, params);
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * born_leptons(s, t, params);
+                }
+            }
+        }
+    }
+
+    if (is_gaugino_gluino(params->out1, params->out2)) { // LO with strong coupling.
+        double g3s = std::norm(params->gqq[0][0].R);
+        return   4.0 * M_PI * aS(params->murs, params->set)/ g3s 
+            * 1.0 / (24.0 * s * 3.0)  * sig * djac;
+    } else { // LO without any strong coupling.
+    // Flux, symmetry factor, spin and color average. fc = 3; average 1/36; 
+    // and 1/2s flux -> 1/24 as overall factor
+        return dij * sig * djac / (24.0 * s);
+    }
+}
+
+// Virtual corrections. (completely analog to IB_dlnM2, but different partonic cross section)
+double IV_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj; // conversion of type void* into IOS*
+    double xa, xb, t;
+    const double djac = dPS2_dlnM2(xa, xb, t, x, params);
+    const double s = xa * xb * params->sh;
+
+    // Symmetry factor.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = 0.5;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    // initialize cross section.
+    double sig = 0.0;
+
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Check if charge is conserved.
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * (Virt_gaugino_gluino(s, t, params) + DipI_gagl(s, t, params));
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * (Virt_sleptons(s, t, params) + DipI_sleptons(s, t, params));
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * (Virt_gauginos(s, t, params) + DipI_gauginos(s, t, params));
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1])
+                        * (Virt_leptons(s, t, params) + DipI_leptons(s, t, params));
+                }
+            }
+        }
+    }
+
+    // Flux, symmetry factor, spin and color average.
+    if(is_gaugino_gluino(params->out1, params->out2)){
+      double g3s = std::norm(params->gqq[0][0].R);
+      return (4.0 * M_PI * aS(params->murs, params->set) )
+        * (4.0 * M_PI * aS(params->murs, params->set) )
+        * dij * sig * djac * 1.0/(2.0 * s) * (1.0/36.0);
+    }
+    else{
+      return aS(params->murs, params->set) / (2.0 * M_PI)
+        * dij * sig * djac * 4.0 / (24.0 * s * 3.0);
+    }
+}
+
+// Collinear emission.
+double IC_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double djacdelta, djacplus, xa, xb, xc, tc;
+    double djac = dPS2C_dlnM2(djacdelta, djacplus, xa, xb, xc, tc, x, params);
+    // sc = xc s = xa xb xc S = M^2.
+    const double sc = params->mis;
+    // x value for parton out of proton b 
+    // leading to the same final state invariant mass without any splitting
+    // (used for plus and delta distribution part)
+    const double xd = xb * xc;
+
+    // xcmin; needed for the correct use of the plus distribution.
+    double z = xb * xc;
+
+    // partonic com energy before the splitting.
+    const double s = sc / xc;
+
+    // 2 * pap1, where p1 belongs to the boosted phase space
+    double sa1c = sja(sc, tc, params) / xc;
+    // 2 * pbp1, where p1 belongs to the boosted phase space
+    double sb1c = sjb(sc, tc, params) / xc;
+
+    // Needed for the plus and delta distribution part.
+    // 2 * pap1, where pa and p1 belong to the boosted phase space.
+    double sa1d = sja(sc, tc, params);
+    // 2 * pbp1, where pb and p1 belong to the boosted phase space.
+    double sb1d = sjb(sc, tc, params);
+    
+    // Majorana symmetry factor.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = .5;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+    double gd, qd[2][6]; // Needed for plus and delta distribution part.
+    pdfX(gd, qd, xd, params->mufs);
+
+    // Initialize collinear born cross section and the total sigma.
+    double bornc = 0.0;
+    double sig = 0.0;    
+    
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Test charge conservation
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+                    bornc = born_gagl(sc, tc, params);
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    bornc = born_sleptons(sc, tc, params);
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    bornc = born_gauginos(sc, tc, params);
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    bornc = born_leptons(sc, tc, params);
+                }
+                
+                if(is_gaugino_gluino(params->out1, params->out2)) {
+
+                  // P_qq and P_qbqb with sa1c
+                  sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                        (P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, sa1c, s,
+                                        params->mufs,1.0, INITIAL_AND_FINAL ) * djac * bornc
+                         );
+
+                  // Parton with momentum fraction xd = xb*xc leads without emission to same invariant mass.
+                  // s-> sc and sa1c -> sa1d.
+                  sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1]) * (
+                                                        
+                         - P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_PLUS, xc, z, sa1d, sc,
+                                          params->mufs,1.0, INITIAL_AND_FINAL ) * djacplus * bornc
+                         +  P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_DELTA, xc, z, sa1d, sc,
+                                          params->mufs,1.0, INITIAL_AND_FINAL ) * djacdelta * bornc
+                            );
+                  // P_qq and P_qbqb with sb1c.
+                  sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                        (P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, sb1c, s,
+                                        params->mufs,1.0, INITIAL_AND_FINAL ) * djac * bornc);
+
+                  sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1]) * (
+                         - P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_PLUS, xc, z, sb1d, sc,
+                                          params->mufs,1.0, INITIAL_AND_FINAL ) * djacplus * bornc
+                         + P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_DELTA, xc, z, sb1d, sc,
+                                          params->mufs,1.0, INITIAL_AND_FINAL ) * djacdelta * bornc
+                            );
+                    
+                   //K_qq and K_qbqb with sa1c.
+                  sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                        (K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, params->mGL,
+                                        sa1c, s, 1.0,INITIAL_AND_FINAL )* djac * bornc);
+
+                  sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1]) * (
+                         - K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_PLUS, xc, z, params->mGL,
+                                          sa1d, sc, 1.0,INITIAL_AND_FINAL) * djacplus * bornc
+                         + K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_DELTA, xc, z,params->mGL,
+                                          sa1d, sc, 1.0, INITIAL_AND_FINAL) * djacdelta * bornc
+                            );
+
+                  // K_qq and K_qbqb with sb1c
+                  sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                        (K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, params->mGL,
+                                        sb1c, s, 1.0,INITIAL_AND_FINAL ) * djac * bornc);
+
+                  sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1]) * (
+                         - K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_PLUS, xc, z, params->mGL,
+                                          sb1d, sc, 1.0, INITIAL_AND_FINAL ) * djacplus * bornc
+                         + K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_GLUINO, FUNCTION_DELTA, xc, z,params->mGL,
+                                          sb1d, sc, 1.0, INITIAL_AND_FINAL ) * djacdelta * bornc
+                            );
+                  
+                    // Pgq and Pgqb (no plus or delta distribution part).
+                    // sa1c
+                  sig += (qb[params->ic][i0] * ga +  qb[1 - params->ic][i1] * ga) *
+                      (P_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, sa1c , s,
+                                      params->mufs,1.0, INITIAL_AND_FINAL) * djac * bornc   
+                            );
+                    
+                    // sb1c
+                    sig += (qa[0][i0] * gb + qa[1][i1] * gb ) *
+                        (P_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, sb1c, s,
+                                        params->mufs,1.0, INITIAL_AND_FINAL) * djac * bornc
+                            );
+
+                    //Kgq and Kgqb
+                    //sa1c
+                    sig += ( + qb[params->ic][i0] * ga +  qb[1 - params->ic][i1] * ga) *
+                        (K_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z, params ->mGL,sa1c,
+                                        s, 1.0, INITIAL_AND_FINAL ) * djac * bornc
+                            );
+
+                    //sb1c
+                    sig += (qa[0][i0] * gb  + qa[1][i1] * gb ) *
+                        (K_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUINO, FUNCTION_ALL_WDELTA, xc, z,  params->mGL, sb1c,
+                                        s, 1.0, INITIAL_AND_FINAL ) * djac * bornc
+                            );
+
+                }
+                         
+                else { // cases without final state partons in LO
+
+                    // Pqq and Pqbqb
+                    sig +=  (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1] +
+                             qb[0][i0] * qa[1 - params->ic][i1] + qa[params->ic][i0] * qb[1][i1]) *
+                        (P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_NONE, FUNCTION_ALL_WDELTA, xc, z,
+                                        0.0,s , params->mufs,1.0, INITIAL ) * djac * bornc);
+
+                    // plus distribution part.
+                    sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1] +
+                            qd[0][i0] * qa[1 - params->ic][i1] + qa[params->ic][i0] * qd[1][i1]) 
+                        * (- P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                            PARTON_NONE, FUNCTION_PLUS, xc, z,
+                                            0.0, sc, params->mufs,1.0, INITIAL ) * djacplus * bornc);
+
+                    // delta distribution part.
+                    sig +=  2.0 * (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1])  
+                        * (P_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                          PARTON_NONE, FUNCTION_DELTA, xc, z ,
+                                          0.0, sc , params->mufs,1.0, INITIAL ) * djacdelta  * bornc);
+                            
+
+                // Kqq and Kqbqb
+                sig +=   (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1] +
+                          qb[0][i0] * qa[1 - params->ic][i1] + qa[params->ic][i0] * qb[1][i1])  *
+                  (K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                  PARTON_NONE, FUNCTION_ALL_WDELTA, xc, z, 0.0,0.0,
+                                  s, 1.0, INITIAL ) * djac * bornc);
+
+                // plus distribution part.
+                sig += (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1] 
+                        + qd[0][i0] * qa[1 - params->ic][i1] + qa[params->ic][i0] * qd[1][i1]) *
+                    (-  K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK, PARTON_NONE, 
+                                       FUNCTION_PLUS, xc, z,0.0, 0.0, sc,1.0, INITIAL ) 
+                     * djacplus * bornc);
+
+                // delta distribution part.
+                sig += 2.0 *  (qa[0][i0] * qd[1 - params->ic][i1] + qd[params->ic][i0] * qa[1][i1])  
+                  * K_bold_aap_b_j(PARTON_QUARK, PARTON_QUARK, PARTON_ANTIQUARK,
+                                   PARTON_NONE, FUNCTION_DELTA, xc, z,0.0, 0.0,
+                                   sc,1.0, INITIAL ) * djacdelta *  bornc;
+
+                // Pgq and Pgqb             
+                sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga
+                        + qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                  (P_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                  PARTON_NONE, FUNCTION_ALL_WDELTA, xc, z, 0.0,
+                                  s, params->mufs,1.0, INITIAL ) * djac * bornc
+                    );
+                                                       
+                // //Kgq and Kgqb
+                sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga
+                        + qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * 
+                    
+                  ( K_bold_aap_b_j(PARTON_GLUON, PARTON_QUARK, PARTON_ANTIQUARK,
+                                   PARTON_NONE, FUNCTION_ALL_WDELTA, xc, z, 0.0,0.0,
+                                   s,1.0, INITIAL ) * djac * bornc
+                    );
+                }
+            }
+        }
+    }
+        // Flux, symmetry factor, spin and color average
+        if (is_gaugino_gluino(params->out1, params->out2)) {
+            double g3s = std::norm(params->gqq[0][0].R);
+            return 1.0/ (36.0 * 2.0 * sc) * sig * aS(params->murs, params->set) 
+                * (4.0 * M_PI *  aS(params->murs, params->set))/g3s;
+        } else {
+            return dij * 3.0/ (36.0 * 2.0 * sc) * sig * aS(params->murs, params->set);       
+        }
+    }
+
+
+// Integrand for real gluon emission.
+double IG_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb, mi2, pt2, th, ph;
+    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, params);
+    const double s = xa * xb * params->sh;
+    if (djac == 0.0) {
+        return 0.0;
+    }
+
+    // Numerical cutoff for stability.
+    // (Some seeds could directly probe the divergent region and then you get a
+    // nan - nan which is nan and not zero.) 
+    // Checked that for small pt values the dipoles completely reproduce the
+    // 2->3 real emission diagrams.
+    if (pt2 < 1.0E-6) {
+      return 0.0;
+    }
+
+    // Symmetry factor.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = .5;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double sig = 0.0;
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Check if charge is conserved.
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) { 
+                // gluon emission for the associated gaugino gluino production.
+              if (is_gaugino_gluino(params->out1, params->out2)) {
+                sig += (qa[0][i0] * qb[1 - params->ic][i1]
+                            + qb[params->ic][i0] * qa[1][i1]) * 
+                         // Real gluon emission.
+                         (real_gluon_gaugino_gluino(s, mi2, pt2, th, ph, 0, params) +
+                         real_gluon_gaugino_gluino(s, mi2, pt2, th, ph, 1, params)
+
+                         // Corresponding Catani-Seymour Dipoles dsigma^A.
+                         // Initial state emitter (quark) and initial state spectator (antiquark)
+                         -Dip_GLGA(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                         // Initial state emitter (antiquark) and initial state spectator (quark)
+                         -Dip_GLGA(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                         // Initial state emitter (quark) and final state spectator (gluino)
+                         -Dip_GLGA(INITIAL_FINAL, PARTON_QUARK, PARTON_GLUINO,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(INITIAL_FINAL, PARTON_QUARK, PARTON_GLUINO,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                         // Initial state emitter (antiquark) and final state spectator (gluino)
+                         -Dip_GLGA(INITIAL_FINAL, PARTON_ANTIQUARK, PARTON_GLUINO,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(INITIAL_FINAL, PARTON_ANTIQUARK, PARTON_GLUINO,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                         // Final state emitter (gluino) and initial state spectator (antiquark)
+                         -Dip_GLGA(FINAL_INITIAL, PARTON_GLUINO, PARTON_ANTIQUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(FINAL_INITIAL, PARTON_GLUINO, PARTON_ANTIQUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                         // Final state emitter (gluino) and initial state spectator (quark)
+                         -Dip_GLGA(FINAL_INITIAL, PARTON_GLUINO, PARTON_QUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                         -Dip_GLGA(FINAL_INITIAL, PARTON_GLUINO, PARTON_QUARK,
+                                   PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+                         );
+
+                // Real gluon emission for slepton pair production.
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1]
+                            + qb[params->ic][i0] * qa[1][i1]) *
+                        (real_gluon_sleptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_gluon_sleptons(s, mi2, pt2, th, ph, 1, params)
+
+                         // quark antiquark
+                         -(Dip_SLEPTONS(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                           +Dip_SLEPTONS(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                         PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                           // antiquark quark
+                           +Dip_SLEPTONS(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                         PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                           +Dip_SLEPTONS(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                         PARTON_GLUON, s, mi2, pt2, th, ph, 1,params))
+                            );
+                    // real gluon emission for gaugino pair production.
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1]
+                            + qb[params->ic][i0] * qa[1][i1]) *
+                        (real_gluon_gauginos(s, mi2, pt2, th, ph, 0, params) +
+                         real_gluon_gauginos(s, mi2, pt2, th, ph, 1, params) -
+
+                         (Dip_GAUGINOS(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                       PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_GAUGINOS(INITIAL_INITIAL, PARTON_QUARK, PARTON_ANTIQUARK,
+                                        PARTON_GLUON, s, mi2, pt2, th, ph, 1,params)
+
+                          +Dip_GAUGINOS(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                        PARTON_GLUON, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_GAUGINOS(INITIAL_INITIAL, PARTON_ANTIQUARK, PARTON_QUARK,
+                                        PARTON_GLUON, s, mi2, pt2, th, ph, 1,params))
+                            );
+                    // real gluon emission for lepton pair production (still old dipole implementation)
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                        (real_gluon_leptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_gluon_leptons(s, mi2, pt2, th, ph, 1, params) -
+                         DipGA_leptons(s, mi2, pt2, th, ph, 0, params) -
+                         DipGA_leptons(s, mi2, pt2, th, ph, 1, params) -
+                         DipGB_leptons(s, mi2, pt2, th, ph, 0, params) -
+                         DipGB_leptons(s, mi2, pt2, th, ph, 1, params)
+                            );
+                }
+            }
+        }
+    }
+
+    // Flux, symmetry factor, spin and color average.
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+        double g3s = std::norm(params->gqq[0][0].R);
+        return  0.5 * 1/(72*s) * (4 * M_PI * aS(params->murs, params->set))
+            *(4 * M_PI * aS(params->murs, params->set))* sig * djac/g3s;
+    } else {
+        return  dij * 0.5 * 4/(72*s) * (4 * M_PI * aS(params->murs, params->set)) * sig * djac;
+    }
+}
+
+// Integrand for real gluon emission for joint resummation.
+// No dipoles -> cf. addition to joint res.
+double IG_dlnM2j(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb, mi2, pt2, th, ph;
+    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, params);
+    const double s = xa * xb * params->sh;
+    if (djac == 0.0) {
+        return 0.0;
+    }
+
+    // Symmetry factor.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = .5;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double real_gluon0 = 0.0;
+    double real_gluon1 = 0.0;
+
+    double sig = 0.0;
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+            // Test charge conservation
+
+
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+                    cout << "No joint resummation for gaugino gluino production." << endl;
+                    exit(1);
+                    //real_gluon0 = real_gluon_gaugino_gluino(s, mi2, pt2, th, ph, 0, params);
+                    //real_gluon1 = real_gluon_gaugino_gluino(s, mi2, pt2, th, ph, 1, params);
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    real_gluon0 = real_gluon_sleptons(s, mi2, pt2, th, ph, 0, params);
+                    real_gluon1 = real_gluon_sleptons(s, mi2, pt2, th, ph, 1, params);
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    real_gluon0 = real_gluon_gauginos(s, mi2, pt2, th, ph, 0, params);
+                    real_gluon1 = real_gluon_gauginos(s, mi2, pt2, th, ph, 1, params);
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    real_gluon0 = real_gluon_leptons(s, mi2, pt2, th, ph, 0, params);
+                    real_gluon1 = real_gluon_leptons(s, mi2, pt2, th, ph, 1, params);
+                }
+
+                sig += (qa[0][i0] * qb[1 - params->ic][i1] + qb[params->ic][i0] * qa[1][i1]) *
+                    (real_gluon0 +
+                     real_gluon1);
+            }
+        }
+    }
+    // Flux, symmetry factor, spin and color average
+    return dij * pow(M_PI, 2) / 4.5 / s * sig * djac * aS(params->murs, params->set) / (2 * M_PI);
+
+}
+
+// Integrand for real quark and antiquark emission.
+double IQ_dlnM2(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb, mi2, pt2, th, ph;
+    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, params);
+    const double s = xa * xb * params->sh;
+
+    // Different three-particle phase space for on-shell subtraction
+    // for the associated gaugino-gluino production.
+    double s2_13, t1_13, s1_13, phi_13, djac13;
+    double s2_23, t1_23, s1_23, phi_23, djac23;
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+        djac13 = dPS3_ONSHELL13_dlnM2(xa, xb, s2_13, t1_13, s1_13, phi_13, x, params);
+        djac23 = dPS3_ONSHELL23_dlnM2(xa, xb, s2_23, t1_23, s1_23, phi_23, x, params);
+    }
+
+   if (djac == 0.0) {
+        return 0.0;
+    }
+
+   // Symmetry factor.
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = .5;
+    }
+
+    // Numerical cutoff for stability.
+    // Due to the finite width and interference terms
+    // of on- and off-shell contributions
+    // non stable integration can occure
+    // checked that dipole reproduces the real emission contribution
+    // completely close to the divergent region
+    if (pt2 < 1.0E-6) {
+      return 0.0;
+    }
+
+    // PDFs.
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double sig = 0.0;
+    double sigOS = 0.0;
+
+    // Color average for 2->3 and LO.
+    double color_average_2to3 = 1.0/3.0 * 1.0/8.0; 
+    double color_average_born = 1.0/3.0 * 1.0/3.0;
+
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Tests charge conservation.
+
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+
+                    // real quark emission.
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        ( color_average_2to3 * (real_quark_gaugino_gluino(s, mi2, pt2, th, ph, 0, params) +
+                                                real_quark_gaugino_gluino(s, mi2, pt2, th, ph, 1, params)
+                                                
+                            )
+
+                          // Corresponding dipoles.
+                          - color_average_born *(Dip_GLGA(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK, 
+                                                          PARTON_QUARK, s, mi2, pt2, th, ph, 0,params)         
+                                                 +Dip_GLGA(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK, 
+                                                           PARTON_QUARK, s, mi2, pt2, th, ph, 1,params)
+                                     
+                                                 +Dip_GLGA(INITIAL_FINAL, PARTON_GLUON, PARTON_GLUINO, 
+                                                           PARTON_QUARK, s, mi2, pt2, th, ph, 0,params)         
+                                                 +Dip_GLGA(INITIAL_FINAL, PARTON_GLUON, PARTON_GLUINO, 
+                                                           PARTON_QUARK, s, mi2, pt2, th, ph, 1,params)
+                              )
+              
+                            );
+
+                    // real antiquark emission.
+                    sig +=  (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (  color_average_2to3 * (real_quarkb_gaugino_gluino(s, mi2, pt2, th, ph, 0, params) +
+                                                 real_quarkb_gaugino_gluino(s, mi2, pt2, th, ph, 1, params)) 
+
+                           // corresponding dipoles.
+                           -  color_average_born * (Dip_GLGA(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK, 
+                                                             PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 0,params)         
+                                                    +Dip_GLGA(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK, 
+                                                              PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 1,params)
+
+                                                    +Dip_GLGA(INITIAL_FINAL, PARTON_GLUON, PARTON_GLUINO, 
+                                                              PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 0,params)         
+                                                    +Dip_GLGA(INITIAL_FINAL, PARTON_GLUON, PARTON_GLUINO, 
+                                                              PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 1,params))
+
+                            );
+
+                    // Real quark and antiquark emission for Drell-Yan like processes.
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_sleptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_sleptons(s, mi2, pt2, th, ph, 1, params) -
+
+                         (Dip_SLEPTONS(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK,
+                                       PARTON_QUARK, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_SLEPTONS(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK,
+                                        PARTON_QUARK, s, mi2, pt2, th, ph, 1,params))
+                            );
+
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_sleptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_sleptons(s, mi2, pt2, th, ph, 1, params) -
+                         (Dip_SLEPTONS(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK,
+                                       PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_SLEPTONS(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK,
+                                        PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 1,params))
+                            );
+
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_gauginos(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_gauginos(s, mi2, pt2, th, ph, 1, params) -
+                         (Dip_GAUGINOS(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK,
+                                       PARTON_QUARK, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_GAUGINOS(INITIAL_INITIAL, PARTON_GLUON, PARTON_QUARK,
+                                        PARTON_QUARK, s, mi2, pt2, th, ph, 1,params))
+                            );
+
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_gauginos(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_gauginos(s, mi2, pt2, th, ph, 1, params) -
+                         (Dip_GAUGINOS(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK,
+                                       PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 0,params)
+                          +Dip_GAUGINOS(INITIAL_INITIAL, PARTON_GLUON, PARTON_ANTIQUARK,
+                                        PARTON_ANTIQUARK, s, mi2, pt2, th, ph, 1,params))
+                            );
+
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_leptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_leptons(s, mi2, pt2, th, ph, 1, params) -
+                         DipQB_leptons(s, mi2, pt2, th, ph, 0, params) -
+                         DipQB_leptons(s, mi2, pt2, th, ph, 1, params));
+
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_leptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_leptons(s, mi2, pt2, th, ph, 1, params) -
+                         DipQA_leptons(s, mi2, pt2, th, ph, 0, params) -
+                         DipQA_leptons(s, mi2, pt2, th, ph, 1, params));
+                }
+
+                // On-shell subtraction for the associated gaugino gluino production.
+                if (is_gaugino_gluino(params->out1, params->out2)) {
+
+                    if (abs(djac13) > 1E-15) {
+                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3 
+                            * real_quark_gaugino_gluino_onshell_13(s, s2_13, t1_13, s1_13, phi_13, 2, params) 
+                            * djac13;
+
+                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
+                              * real_quarkb_gaugino_gluino_onshell_13(s, s2_13, t1_13, s1_13, phi_13, 2, params) 
+                              * djac13;
+                    }
+
+                    if (abs(djac23) > 1E-15) {
+                        sigOS += (qa[0][i0] * gb + qb[params->ic][i0] * ga) * color_average_2to3  
+                              * real_quark_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23, phi_23, 1, params) 
+                               * djac23;
+
+
+                        sigOS += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) * color_average_2to3 
+                              * real_quarkb_gaugino_gluino_onshell_23(s, s2_23, t1_23, s1_23, phi_23, 1, params) 
+                              * djac23;
+                    }
+                }
+            }
+        }
+    }
+    // Flux, symmetry factor, spin and color average.
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+        double g3s = std::norm(params->gqq[0][0].R);
+        return  0.5  * 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
+            *(4.0 * M_PI * aS(params->murs, params->set))* sig * djac/g3s
+            // on shell "remainder".
+            + 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
+        *(4.0 * M_PI * aS(params->murs, params->set))* sigOS /g3s * params->mis;
+    } else {
+        return  dij * 0.5 * 4/(96 *2*s) * (4 * M_PI * aS(params->murs, params->set)) * sig * djac;
+    }
+  
+}
+
+// Real quark and antiquark emission for joint resummation.
+// No dipoles -> cf. addition to the joint.
+double IQ_dlnM2j(double *x, size_t dim, void *jj) {
+    Parameters *params = (Parameters *)jj;
+    double xa, xb, mi2, pt2, th, ph;
+    const double djac = dPS3_dlnM2(xa, xb, mi2, pt2, th, ph, x, params);
+    const double s = xa * xb * params->sh;
+    if (djac == 0.0) {
+        return 0.0;
+    }
+    double dij = 1.0;
+    if (params->out1 == params->out2 && params->out1 / 4 == 0) {
+        dij = .5;
+    }
+
+    double ga, qa[2][6];
+    pdfX(ga, qa, xa, params->mufs);
+    double gb, qb[2][6];
+    pdfX(gb, qb, xb, params->mufs);
+
+    double sig = 0.0;
+
+    double color_average_2to3 = 1.0/3.0 * 1.0/8.0; 
+    double color_average_born = 1.0/3.0 * 1.0/3.0;
+
+    // Sum over all possible initial states
+    for (int i0 = 0; i0 < 5; i0++) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            // Set initial state
+            params->in1 = i0;
+            params->in2 = i1;
+
+            // Tests charge conservation.
+
+            if (is_charge_conserved(params->in1, params->in2, params->out1, params->out2)) {
+              if (is_gaugino_gluino(params->out1, params->out2)) {
+                  cout << "No joint resummation for gaugino gluino production." << endl;
+                  exit(1);
+                // sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                //   ( color_average_2to3 * (real_quark_gaugino_gluino(s, mi2, pt2, th, ph, 0, params) +
+                //                           real_quark_gaugino_gluino(s, mi2, pt2, th, ph, 1, params)));
+                                                
+                // sig +=  (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                //   (  color_average_2to3 * (real_quarkb_gaugino_gluino(s, mi2, pt2, th, ph, 0, params) +
+                //                            real_quarkb_gaugino_gluino(s, mi2, pt2, th, ph, 1, params)));
+                } else if (is_slepton_slepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_sleptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_sleptons(s, mi2, pt2, th, ph, 1, params));
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_sleptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_sleptons(s, mi2, pt2, th, ph, 1, params));
+                } else if (is_gaugino_gaugino(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_gauginos(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_gauginos(s, mi2, pt2, th, ph, 1, params));
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_gauginos(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_gauginos(s, mi2, pt2, th, ph, 1, params));
+                } else if (is_lepton_lepton(params->out1, params->out2)) {
+                    sig += (qa[0][i0] * gb + qb[params->ic][i0] * ga) *
+                        (real_quark_leptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quark_leptons(s, mi2, pt2, th, ph, 1, params));
+                    sig += (qa[1][i1] * gb + qb[1 - params->ic][i1] * ga) *
+                        (real_quarkb_leptons(s, mi2, pt2, th, ph, 0, params) +
+                         real_quarkb_leptons(s, mi2, pt2, th, ph, 1, params));
+                }
+            }
+        }
+    }
+
+
+    // Flux, symmetry factor, spin and color average
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+      double g3s = std::norm(params->gqq[0][0].R);
+      return  0.5  * 1.0/2.0 * 1.0/2.0 * 1.0/(2.0*s) * (4.0 * M_PI * aS(params->murs, params->set))
+        *(4.0 * M_PI * aS(params->murs, params->set))* sig * djac/g3s;
+    } else {
+      return  dij * 0.5 * 4/(96 *2*s) * (4 * M_PI * aS(params->murs, params->set)) * sig * djac;
+    }
+}
+
+// Threshold resummation.
+// Collinear improved version for Drell-Yan like processes
+// and "ordinary" resummation for the associated gaugino gluino production.
+double IR_dlnM2(double *x, size_t dim, void *prm) {
+    Parameters *params = (Parameters *)prm;
+
+    const double sh = params->sh;
+    double m1;
+    double m2;
+
+    // macro to set final state masses.
+    SET_MASS;
+
+    const double m1s = pow(m1, 2);
+    const double m2s = pow(m2, 2);
+
+    // ivariant mass squared.
+    double s = params->mis;
+
+    if (s < pow(m1 + m2, 2)) {
+        cout << "IvMlln: M2 too small\n";
         exit(0);
     } else if (s > sh) {
-        std::cout << "IvMlln: M2 too large\n";
+        cout << "IvMlln: M2 too large\n";
         exit(1);
     }
 
     // Jacobian initialization
-    std::complex<double> djac(389379304., 0.);
+    complex<double> djac(389379304.0, 0.0);
 
     // Inverse Mellin
-    const std::complex<double> ephi(-M_SQRT1_2, M_SQRT1_2);
-    const std::complex<double> nm = (s / sh / .09) + .09 - jp->a1min - ephi * std::log(x[0]);
+    const complex<double> ephi(-M_SQRT1_2, M_SQRT1_2);
+    const complex<double> nm = (s / sh / .09) + .09 - params->a1min - ephi * log(x[0]);
     djac *= ephi / x[0];
 
     // t integration
@@ -685,111 +1390,111 @@ double IR_dlnM2(double *x, size_t dim, void *prm)
     double t = (tmax - tmin) * x[1] + tmin;
     djac *= tmax - tmin;
 
-    djac /= 8.*M_PI * s;
+    // Final jacobian.
+    djac /= 8.0 * M_PI * s;
 
-    return M_1_PI * std::imag(djac * std::pow(s / sh, -nm + 1.) * Thadronic_xs2(nm, s, t, jp));
+    if (is_gaugino_gluino(params->out1, params->out2)) { // NLL
+  return M_1_PI * imag(djac * pow(s / sh, -nm + 1.0) * Thadronic_xs(nm, s, t, params));
+ }
+    // Collinear improved version for Drell-Yan like processes
+    return M_1_PI * imag(djac * pow(s / sh, -nm + 1.0) * Thadronic_xs2(nm, s, t, params)); // NLL impr.
 }
 
-void hadronic_xs_dlnM2(double &res, double &err, double &chi2,
-                       int Flag, int Verb, Parameters *Params)
-{
+// Ordinary resummation for Drell-Yan like processes.
+double IR_unimproved_dlnM2(double *x, size_t dim, void *prm) {
+    Parameters *params = (Parameters *)prm;
 
-    // Definition of the integral
-    size_t calls = 0;
-    gsl_monte_function I;
-    switch (Flag) {
-    case 0:
-        I.f = &IB_dlnM2;
-        I.dim = 2;
-        I.params = Params;
-        calls = 10000;
-        break;
-    case 1:
-        I.f = &IV_dlnM2;
-        I.dim = 2;
-        I.params = Params;
-        calls = 1000;
-        break;
-    case 2:
-        I.f = &IC_dlnM2;
-        I.dim = 3;
-        I.params = Params;
-        calls = 15000;
-        break;
-    case 3:
-        I.f = &IG_dlnM2;
-        I.dim = 5;
-        I.params = Params;
-        calls = 25000;
-        break;
-    case 4:
-        I.f = &IQ_dlnM2;
-        I.dim = 5;
-        I.params = Params;
-        calls = 25000;
-        break;
-    case 5:
-        I.f = &IR_dlnM2;
-        I.dim = 2;
-        I.params = Params;
-        calls = 20000;
-        break;
-        //case 6: I.f=&IJ_dlnM2; I.dim=5; I.params=Params; calls=50000; break; // Bugged ?
-    default:
-        std::cout << "hadronic_xs: Flag=" << Flag << std::endl;
+    const double sh = params->sh;
+    double m1;
+    double m2;
+
+    SET_MASS;
+
+    const double m1s = pow(m1, 2);
+    const double m2s = pow(m2, 2);
+    double s = params->mis;
+
+    if (s < pow(m1 + m2, 2)) {
+        cout << "IvMlln: M2 too small\n";
         exit(0);
-    }
-    const size_t dnum = I.dim;
-
-    double xmin[dnum], xmax[dnum];
-    for (size_t i0 = 0; i0 < dnum; i0++) {
-        xmin[i0] = 0.;
-        xmax[i0] = 1.;
+    } else if (s > sh) {
+        cout << "IvMlln: M2 too large\n";
+        exit(1);
     }
 
-    // Initialization
-    const gsl_rng_type *T;
-    gsl_rng *r;
-    gsl_rng_env_setup();
-    T = gsl_rng_default;
-    r = gsl_rng_alloc(T);
-    gsl_monte_vegas_state *s = gsl_monte_vegas_alloc(dnum);
-    s->ostream = Params->fout;
-    s->verbose = Verb;
+    // Jacobian initialization
+    complex<double> djac(389379304.0, 0.0);
 
-    // Integration warm-up.
-    s->stage = 0;
-    s->iterations = 5;
-    gsl_monte_vegas_integrate(&I, xmin, xmax, dnum, calls / 10, r, s,
-                              &res, &err);
+    // Inverse Mellin
+    const complex<double> ephi(-M_SQRT1_2, M_SQRT1_2);
+    const complex<double> nm = (s / sh / .09) + .09 - params->a1min - ephi * log(x[0]);
+    djac *= ephi / x[0];
 
-    // Integrates.
-    s->stage = 1;
-    s->iterations = 5;
-    gsl_monte_vegas_integrate(&I, xmin, xmax, dnum, calls, r, s, &res, &err);
+    // t integration
+    const double tmin = -.5 * (s - m1s - m2s + kln(s, m1s, m2s));
+    const double tmax = tmin + kln(s, m1s, m2s);
+    double t = (tmax - tmin) * x[1] + tmin;
+    djac *= tmax - tmin;
 
-    // Convergence step.
-    double prec;
-    int counter = 1;
+    djac /= 8.0 * M_PI * s;
 
-    do {
+  return M_1_PI * imag(djac * pow(s / sh, -nm + 1.0) * Thadronic_xs(nm, s, t, params));
+}
 
-      if (abs(res) < 1.0e-15) {
-        break;
+
+// Integration.
+// If a specific integration is not stable increase the number of calls (3rd argument of Integration()).
+void hadronic_xs_dlnM2(double &res, double &err, double &chi2,
+                       int Flag, int Verb, Parameters *params) {
+
+  // Definition of the integral
+  switch(Flag) {
+
+  case 0:
+    Integration(&IB_dlnM2, 2, 10000, params->precision, 1e-12, res, err, params);
+    break;
+  case 1:
+    Integration(&IV_dlnM2, 2, 800, params->precision, 1e-12, res, err, params, 0.2);
+    break;
+  case 2:
+    Integration(&IC_dlnM2, 3, 15000, params->precision, 1e-12, res, err, params);
+    break;
+
+  case 3:
+    Integration(&IG_dlnM2, 5, 20000, params->precision, 1e-12, res, err, params);
+    break;
+
+  case 4:
+    // on-shell remainder sizable -> increase precision by increasing number of calls
+    int calls;
+    if (is_gaugino_gluino(params->out1, params->out2)) {
+      calls = 50000; // increase the number of calls slightly
+      // check if gluino is lighter than the squarks (without stop)
+      for (int i = 0; i < 12; i++) {
+        if (i == 8 || i == 11 ) {
+          continue; // no increase of calls needed
+        } if (params->mGL < params->mSQ[i]) {
+          calls = 100000; // on-shell remainder sizable
+          break;
+        }
       }
-      
-      s->iterations = 1;
-      s->stage = 3;
-
-        gsl_monte_vegas_integrate(&I, xmin, xmax, dnum, calls / 5, r, s,
-                                  &res, &err);
-        prec = abs(err / res);
-        counter++;
-    } while (prec > Params->precision && counter <= Params->max_iters);
-
-    err = pow2(err);
-    chi2 = s->chisq;
-
-    gsl_monte_vegas_free(s);
-    gsl_rng_free(r);
+    } else {
+      calls = 30000; // for the other processes there is no sizable onshell remainder
+    }
+    Integration(&IQ_dlnM2, 5, calls, params->precision, 
+                1e-12, res, err, params, 0.25);
+    break;
+  case 5: // threshold resummation (improved for DY; ordinary for gaugino-gluino)
+    Integration(&IR_dlnM2, 2, 15000, params->precision, 1e-12, res, err, params, 0.2);
+    break;
+  case 6: // ordinary threshold resummation (including nnll logs)
+    Integration(&IR_unimproved_dlnM2, 2, 15000, params->precision, 
+                1e-12, res, err, params, 0.2);
+    break;
+  default:
+    break;
+    cout << "hadronic_xs_dlnM2: Flag=" << Flag << endl;
+    exit(0);
+  }
+  return;
 }

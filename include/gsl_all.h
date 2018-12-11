@@ -5,3 +5,4 @@
 #include "gsl/gsl_integration.h"
 #include "gsl/gsl_monte_vegas.h"
 #include "gsl/gsl_multifit_nlin.h"
+#include "gsl/gsl_sf.h"
