@@ -366,6 +366,8 @@ double IC_dlnM2(double *x, size_t dim, void *jj)
     pdfX(gd, qd, xd, jp->mufs);
 
     double sig = 0.;
+    double z = xb * xc;
+
     // Sum over all possible initial states
     for (int i0 = 0; i0 < 5; i0++) {
         for (int i1 = 0; i1 < 5; i1++) {
@@ -388,7 +390,7 @@ double IC_dlnM2(double *x, size_t dim, void *jj)
                 // Pqq and Kqq
                 sig += (qa[0][i0] * qb[1 - jp->ic][i1] + qb[jp->ic][i0] * qa[1][i1] +
                         qb[0][i0] * qa[1 - jp->ic][i1] + qa[jp->ic][i0] * qb[1][i1]) *
-                       (-(1. + std::pow(xc, 2)) / (1. - xc) * std::log(jp->mufs / sc)
+                       (-(1. + std::pow(xc, 2)) / (1. - xc) * std::log(jp->mufs / sc * xc)
                         + 2.*(2. / (1. - xc) - 1. - xc) * std::log(1. - xc) + 1. - xc
                        ) * Born(sc, tc, jp) * djac * 4. / 3.;
 
@@ -398,8 +400,10 @@ double IC_dlnM2(double *x, size_t dim, void *jj)
                          - 4. / (1. - xc) * std::log(1. - xc))
                        ) * Born(sc, tc, jp) * djacplus * 4. / 3.;
 
-                sig -= (qa[0][i0] * qd[1 - jp->ic][i1] + qd[jp->ic][i0] * qa[1][i1]) *
-                       std::pow(M_PI, 2) * Born(sc, tc, jp) * djacdelta * 4. / 9.;
+                sig += (qa[0][i0] * qd[1 - jp->ic][i1] + qd[jp->ic][i0] * qa[1][i1]) *
+                    + (-pow2(M_PI) / 6.0 - (.5 * z * z + z + 2.*log(1. - z)) * log(jp->mufs / sc)
+                       + 2.*pow2(log(1. - z))) * djacdelta
+                    * Born(sc, tc, jp) * 8.0 / 3.0;
 
                 // Pgq, Kgq, Pgqb, Kgqb
                 sig += (qa[0][i0] * gb + qb[jp->ic][i0] * ga +

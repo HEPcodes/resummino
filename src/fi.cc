@@ -91,7 +91,7 @@ void FI::SetDipKinematicA(double &x, double &fact)
     pap2 = (pap3 * m2s + pap3 * p1p2 - 2.0 * papb * p2p3 + 2.0 * papb * pap2 + x * pap3 * m2s
             + x * pap3 * p2p3 + x * pap3 * p1p2 + 2.0 * x * papb * pap2) / L;
     pbp1 = (2.0 * papb * m1s + 2.0 * papb * p1p2 + 2.0 * papb * pbp1 - 2.0 * x * pap3 * m1s
-            - 2.0 * x * pap3 * p1p3 - 2.0 * x * pap3 * p1p2 - 2.0 * x * papb * m1s - 2.0 * x * papb * p1p3
+            - x * pap3 * p1p3 - 2.0 * x * pap3 * p1p2 - 2.0 * x * papb * m1s - 2.0 * x * papb * p1p3
             - 2.0 * x * papb * p1p2 + 2.0 * x * papb * pbp1) / L;
     pbp2 = (2.0 * papb * m2s + 2.0 * papb * p1p2 + 2.0 * papb * pbp2 - 2.0 * x * pap3 * m2s
             - x * pap3 * p2p3 - 2.0 * x * pap3 * p1p2 - 2.0 * x * papb * m2s - 2.0 * x * papb * p2p3

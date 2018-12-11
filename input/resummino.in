@@ -5,7 +5,7 @@
 
 # Collider parameters.
 collider_type         = proton-proton  # proton-proton or proton-antiproton
-center_of_mass_energy = 8000
+center_of_mass_energy = 13000
 
 # Outgoing particles using the value of the PDG-scheme number.
 # A negative particle number denotes the antiparticle. For the charginos the
@@ -39,9 +39,9 @@ slha = slha.in
 
 # PDF sets for LO and NLO. They should be present in the LHAPDF local setup.
 pdf_format = lhgrid  # lhgrid or lhpdf
-pdf_lo     = MSTW2008lo68cl
+pdf_lo     = CT14llo
 pdfset_lo  = 0
-pdf_nlo    = MSTW2008nlo68cl
+pdf_nlo    = CT14nlo
 pdfset_nlo = 0
 
 # Factorization and renormalization scale factors. They will be multiplied by
