@@ -13,7 +13,7 @@ Prerequisites
 * Boost (some headers only, required for SLHAea) <http://www.boost.org/>
 * GNU Scientific Library (library and headers) <http://www.gnu.org/software/gsl/>
 * LHAPDF (library and headers) <http://lhapdf.hepforge.org/>
-* QCDLoops (included)
+* QCDLoop (already included; no need to download) <http://qcdloop.fnal.gov/>
 
 Compilation and installation
 ----------------------------

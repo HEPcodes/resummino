@@ -417,9 +417,6 @@ double Vbu1(const double S, const double T, Parameters *Params)
                             ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1] , Params->mSQ[i0] * 1.e-2, Params->mSQ[i1] * 1.e-2);
                             ff->SetWCoupling(Cw);
                             virt += ff->MVtbu1t(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVtct1t(IEPS);
-                            }
                         }
                     }
                 }
@@ -439,9 +436,6 @@ double Vbu1(const double S, const double T, Parameters *Params)
                             ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1] , Params->mSQ[i0] * 1.e-2, Params->mSQ[i1] * 1.e-2);
                             ff->SetWCoupling(Cw);
                             virt += ff->MVubu1u(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVuct1u(IEPS);
-                            }
                         }
                     }
                 }
@@ -466,16 +460,10 @@ double Vbu1(const double S, const double T, Parameters *Params)
                             ff->SetPropagator(Params->mv[i0], Params->mSQ[i1], Params->Gv[i0], Params->mSQ[i1] * 1.e-2);
                             ff->SetWCoupling(Cw1);
                             virt += ff->MVsbu1t(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVsct1t(IEPS);
-                            }
 
                             ff->SetPropagator(Params->mSQ[i1], Params->mv[i0], Params->mSQ[i1] * 1.e-2, Params->Gv[i0]);
                             ff->SetWCoupling(Cw2);
                             virt += ff->MVtbu1s(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVtct1s(IEPS);
-                            }
                         }
                     }
                 }
@@ -500,16 +488,10 @@ double Vbu1(const double S, const double T, Parameters *Params)
                             ff->SetPropagator(Params->mv[i0], Params->mSQ[i1], Params->Gv[i0], 0);
                             ff->SetWCoupling(Cw1);
                             virt += ff->MVsbu1u(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVsct1u(IEPS);
-                            }
 
                             ff->SetPropagator(Params->mSQ[i1], Params->mv[i0], Params->mSQ[i1] * 1.e-2, Params->Gv[i0]);
                             ff->SetWCoupling(Cw2);
                             virt += ff->MVubu1s(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVuct1s(IEPS);
-                            }
                         }
                     }
                 }
@@ -534,16 +516,10 @@ double Vbu1(const double S, const double T, Parameters *Params)
                             ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1], 0, 0);
                             ff->SetWCoupling(Cw1);
                             virt += ff->MVtbu1u(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVtct1u(IEPS);
-                            }
 
                             ff->SetPropagator(Params->mSQ[i1], Params->mSQ[i0], Params->mSQ[i1] * 1.e-2, Params->mSQ[i0] * 1.e-2);
                             ff->SetWCoupling(Cw2);
                             virt += ff->MVubu1t(IEPS);
-                            if (j1 == aa) {
-                                virt += ff->MVuct1t(IEPS);
-                            }
                         }
                     }
                 }
@@ -638,9 +614,6 @@ double Vbu2(const double S, const double T, Parameters *Params)
                                 ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1] , Params->mSQ[i0] * 1.e-2, Params->mSQ[i1] * 1.e-2);
                                 ff->SetWCoupling(Cw);
                                 virt += ff->MVtbu2t(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVtct2t(IEPS);
-                                }
                             }
                         }
                     }
@@ -657,9 +630,6 @@ double Vbu2(const double S, const double T, Parameters *Params)
                                 ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1] , Params->mSQ[i0] * 1.e-2, Params->mSQ[i1] * 1.e-2);
                                 ff->SetWCoupling(Cw);
                                 virt += ff->MVubu2u(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVuct2u(IEPS);
-                                }
                             }
                         }
                     }
@@ -679,16 +649,10 @@ double Vbu2(const double S, const double T, Parameters *Params)
                                 ff->SetPropagator(Params->mv[i0], Params->mSQ[i1], Params->Gv[i0], Params->mSQ[i1] * 1.e-2);
                                 ff->SetWCoupling(Cw1);
                                 virt += ff->MVsbu2t(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVsct2t(IEPS);
-                                }
 
                                 ff->SetPropagator(Params->mSQ[i1], Params->mv[i0], Params->mSQ[i1] * 1.e-2, Params->Gv[i0]);
                                 ff->SetWCoupling(Cw2);
                                 virt += ff->MVtbu2s(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVtct2s(IEPS);
-                                }
                             }
                         }
                     }
@@ -708,16 +672,10 @@ double Vbu2(const double S, const double T, Parameters *Params)
                                 ff->SetPropagator(Params->mv[i0], Params->mSQ[i1], Params->Gv[i0], Params->mSQ[i1] * 1.e-2);
                                 ff->SetWCoupling(Cw1);
                                 virt += ff->MVsbu2u(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVsct2u(IEPS);
-                                }
 
                                 ff->SetPropagator(Params->mSQ[i1], Params->mv[i0], Params->mSQ[i1] * 1.e-2, Params->Gv[i0]);
                                 ff->SetWCoupling(Cw2);
                                 virt += ff->MVubu2s(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVuct2s(IEPS);
-                                }
                             }
                         }
                     }
@@ -737,16 +695,10 @@ double Vbu2(const double S, const double T, Parameters *Params)
                                 ff->SetPropagator(Params->mSQ[i0], Params->mSQ[i1], Params->mSQ[i0] * 1.e-2, Params->mSQ[i1] * 1.e-2);
                                 ff->SetWCoupling(Cw1);
                                 virt += ff->MVtbu2u(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVtct2u(IEPS);
-                                }
 
                                 ff->SetPropagator(Params->mSQ[i1], Params->mSQ[i0] , Params->mSQ[i1] * 1.e-2, Params->mSQ[i0] * 1.e-2);
                                 ff->SetWCoupling(Cw2);
                                 virt += ff->MVubu2t(IEPS);
-                                if (j1 == bb) {
-                                    virt += ff->MVuct2t(IEPS);
-                                }
                             }
                         }
                     }
