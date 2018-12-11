@@ -768,10 +768,15 @@ void hadronic_xs_dlnM2(double &res, double &err, double &chi2,
     double prec;
     int counter = 1;
 
-    s->iterations = 1;
-    s->stage = 3;
-
     do {
+
+      if (abs(res) < 1.0e-15) {
+        break;
+      }
+      
+      s->iterations = 1;
+      s->stage = 3;
+
         gsl_monte_vegas_integrate(&I, xmin, xmax, dnum, calls / 5, r, s,
                                   &res, &err);
         prec = abs(err / res);

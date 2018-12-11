@@ -161,12 +161,33 @@ static int pdg_to_internal_id(int pdg_code)
     }
 }
 
+// translates the conventions used in resummino.in
+  // to code conventions where p1 must be positive/neutral and p2 must be negative/neutral
+  // This should also work for squark-gaugino, but not 100% sure!
+static void set_particles(int pdg_p1, int pdg_p2, int *out1, int *out2) {
+  int charge_p1 = pdg_particle_charge(pdg_p1);
+  int charge_p2 = pdg_particle_charge(pdg_p2);
+  int internal_p1 = pdg_to_internal_id(abs(pdg_p1));
+  int internal_p2 = pdg_to_internal_id(abs(pdg_p2));
+
+  if ( (charge_p1 == 1 || charge_p1 == 0) && (charge_p2 == -1 || charge_p2 == 0) ) {
+    *out1 = internal_p1;
+    *out2 = internal_p2;
+  }  else if ((charge_p2 == 1 || charge_p2 == 0) && (charge_p1 == -1 || charge_p1 == 0)) {
+    *out1 = internal_p2;
+    *out2 = internal_p1;
+  } else {
+    fprintf(stderr, "error: Process not recognized.\n");
+    exit(1);
+  }
+}
+
 static void print_banner()
 {
     printf("\n"                                                  \
            "  Welcome to Resummino " RESUMMINO_VERSION "\n"             \
            "  Copyright 2008-2010 Jonathan Debove.\n"                   \
-           "  Copyright 2011-2013 David R. Lamprea and Marcel Rothering.\n" \
+           "  Copyright 2011-2015 David R. Lamprea and Marcel Rothering.\n" \
            "\n"                                                         \
            "  Licensed under the EUPL 1.1 or later.\n"                  \
            "  See http://www.resummino.org/ for more information.\n"    \
@@ -347,46 +368,7 @@ int main(int argc, char *argv[])
     int pdg_p1 = atoi(get_option("particle1").c_str());
     int pdg_p2 = atoi(get_option("particle2").c_str());
 
-    // For the chargino-neutralino case. Anti-chargino is negatively charged.
-    if (pdg_p1 < 0 && pdg_p2 > 0 && pdg_to_internal_id(abs(pdg_p1)) <= 5
-            && pdg_to_internal_id(abs(pdg_p2)) <= 5) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p2));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p1));
-    }
-    // Same as before. Just p1 and p2 exchanged.
-    else if (pdg_p2 < 0 && pdg_p1 > 0 && pdg_to_internal_id(abs(pdg_p1)) <= 5
-             && pdg_to_internal_id(abs(pdg_p2)) <= 5) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p1));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p2));
-    }
-    // For the sleptons.
-    else if (pdg_p1 < 0 && pdg_p2 > 0) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p1));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p2));
-    }
-    // Same as above. Just p1 and p2 changed.
-    else if (pdg_p2 < 0 && pdg_p1 > 0) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p2));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p1));
-    }
-    // For the chargino-neutralino case. Chargino is positively charged.
-    else if (pdg_p1 > 0 && pdg_p2 > 0 && pdg_to_internal_id(abs(pdg_p1)) <  4
-             && pdg_to_internal_id(abs(pdg_p2)) >= 4
-             && pdg_to_internal_id(abs(pdg_p2)) <= 5) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p2));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p1));
-    }
-    // For the chargino-neutralino case. Chargino is positively charged.
-    else if (pdg_p2 > 0 && pdg_p1 > 0 && pdg_to_internal_id(abs(pdg_p2)) <  4
-             && pdg_to_internal_id(abs(pdg_p1)) >= 4
-             && pdg_to_internal_id(abs(pdg_p1)) <= 5) {
-        jp->out1 = pdg_to_internal_id(abs(pdg_p1));
-        jp->out2 = pdg_to_internal_id(abs(pdg_p2));
-    } else {
-        fprintf(stderr, "error: Process not recognized.\n");
-        exit(1);
-    }
-
+    set_particles(pdg_p1, pdg_p2, &jp->out1, &jp->out2);
     jp->sh = pow2(atof(config["center_of_mass_energy"].c_str()));
 
     // Diagonal CKM matrix.

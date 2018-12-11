@@ -45,10 +45,10 @@ pdf_nlo    = MSTW2008nlo68cl
 pdfset_nlo = 0
 
 # Factorization and renormalization scale factors. They will be multiplied by
-# average of the masses of the outgoing particles to obtain the corresponding
+# sum of the masses of the outgoing particles to obtain the corresponding
 # scales.
-mu_f = 1
-mu_r = 1
+mu_f = 0.5
+mu_r = 0.5
 
 # Integration parameters.
 precision = 0.001  # desired precision
