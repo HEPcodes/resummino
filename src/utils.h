@@ -12,7 +12,7 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
-#define RESUMMINO_VERSION "1.0.4"
+#define RESUMMINO_VERSION "1.0.5"
 
 #include <complex>
 

@@ -303,10 +303,9 @@ void Fit(double A[8], double E[8], int flag, double xr, double Q2)
     s = gsl_multifit_fdfsolver_alloc(T, n, p);
 
     // First guess for the parameters.
-    //double x_init[8]={1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     double x_init[8] = {1.0, -1.4, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-    if (flag == (1 || 2)) {
+    if (flag == 1 || flag == 2) {
         x_init[1] = -0.6;
     }
 

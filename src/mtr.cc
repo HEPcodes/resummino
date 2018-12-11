@@ -497,7 +497,7 @@ double FI::MVttr2s(int ieps)
                                          8.*pap1 * pbp2 * RLRL) + 2.*(3.*LRRR * m1 * m2 * papb + 2.*LRLR * p1p2 * papb -
                                                  2.*LRLR * pap2 * pbp1 + 4.*LRLR * pap1 * pbp2) * RR));
 
-    cc->SetIeps(ieps + 1);
+    cc->SetIeps(ieps + 2);
     cc->GetNpf(la, 2);
     cc24 = la[3];
     delete cc;
