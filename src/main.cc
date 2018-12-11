@@ -216,8 +216,8 @@ int main(int argc, char *argv[])
             {"invariant-mass", required_argument, 0, 'm'},
             {"key", required_argument, 0, 'k'},
             {"transverse-momentum", required_argument, 0, 't'},
-            {"pdfset-lo", required_argument, 0, 'a'},
-            {"pdfset-nlo", required_argument, 0, 'b'},
+            {"pdfset_lo", required_argument, 0, 'a'},
+            {"pdfset_nlo", required_argument, 0, 'b'},
             {"mu_f", required_argument, 0, 'f'},
             {"mu_r", required_argument, 0, 'r'},
             {"particle1", required_argument, 0, 'c'},
@@ -240,7 +240,9 @@ int main(int argc, char *argv[])
             exit(0);
             break;
         case 'h':
-            fprintf(stdout, "Please see http://www.resummino.org/ for instructions.");
+            fprintf(stdout,
+                    "\n  Please see http://www.resummino.org/ for instructions.\n\n");
+            exit(0);
             break;
         case 'p':
             log_file = optarg;
@@ -282,6 +284,8 @@ int main(int argc, char *argv[])
             arguments["center_of_mass_energy"] = optarg;
             break;
         case '?':
+            fprintf(stderr, "error: Unknown option given.\n");
+            exit(1);
             break;
         default:
             break;

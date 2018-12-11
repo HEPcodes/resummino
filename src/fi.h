@@ -221,19 +221,6 @@ public:
     double MVubo2u(int eps);
 
     // Counterterms
-    double MVsct1s(int eps);
-    double MVsct1t(int eps);
-    double MVsct1u(int eps);
-    double MVsct2s(int eps);
-    double MVsct2t(int eps);
-    double MVsct2u(int eps);
-
-    double MVtct1s(int eps);
-    double MVtct1t(int eps);
-    double MVtct1u(int eps);
-    double MVtct2s(int eps);
-    double MVtct2t(int eps);
-    double MVtct2u(int eps);
     double MVtct3s(int eps);
     double MVtct3t(int eps);
     double MVtct3u(int eps);
@@ -244,12 +231,6 @@ public:
     double MVtct5t(int eps);
     double MVtct5u(int eps);
 
-    double MVuct1s(int eps);
-    double MVuct1t(int eps);
-    double MVuct1u(int eps);
-    double MVuct2s(int eps);
-    double MVuct2t(int eps);
-    double MVuct2u(int eps);
     double MVuct3s(int eps);
     double MVuct3t(int eps);
     double MVuct3u(int eps);
