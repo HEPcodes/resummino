@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     // that argment through the command-line.
     map<string, string> arguments;
     arguments["key"] = "";
-    arguments["m"] = "";
+    arguments["M"] = "";
     arguments["pt"] = "";
     arguments["pdfset_lo"] = "";
     arguments["pdfset_nlo"] = "";
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
             log_file = optarg;
             break;
         case 'm':
-            arguments["m"] = optarg;
+            arguments["M"] = optarg;
             break;
         case 't':
             arguments["pt"] = optarg;
