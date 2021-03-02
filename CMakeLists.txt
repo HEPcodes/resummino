@@ -18,16 +18,20 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+include(ExternalProject)
+
+## compiles looptools 213 (configure script changed so that the folder is always calles lib)
+ExternalProject_Add(lt
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/LoopTools-2.13
+    CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/lib/LoopTools-2.13/configure --prefix=<INSTALL_DIR>
+    BUILD_COMMAND ${MAKE})
+
 # Boost headers
 include(cmake/RequireBoostHeaders.cmake)
 
 # LHAPDF
 find_package(LHAPDF REQUIRED)
 include_directories(${LHAPDF_INCLUDE_DIRS})
-
-# LoopTools
-find_package(LoopTools REQUIRED)
-include_directories(${LOOPTOOLS_INCLUDE_DIRS})
 
 # GSL
 find_package(GSL REQUIRED)

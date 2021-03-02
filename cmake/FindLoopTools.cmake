@@ -8,9 +8,10 @@
 
 # The library is called ooptools and not looptools. This is so you can use the -looptools
 # option in the compiler.
-find_library(LOOPTOOLS_LIBRARIES ooptools HINTS ${LOOPTOOLS}/lib64 ${LOOPTOOLS}/lib ${LOOPTOOLS_LIBDIR})
 
-find_path(LOOPTOOLS_INCLUDE_DIRS clooptools.h HINTS ${LOOPTOOLS}/include ${LOOPTOOLS_INCLUDE_DIR})
+find_library(LOOPTOOLS_LIBRARIES ooptools PATHS ${resummino_BINARY_DIR}/lt-prefix/lib64 ${resummino_BINARY_DIR}/lt-prefix/lib)
+
+find_path(LOOPTOOLS_INCLUDE_DIRS clooptools.h PATHS ${resummino_BINARY_DIR}/lt-prefix/include ${CMAKE_CURRENT_SOURCE_DIR}/build/lt-prefix/include)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LoopTools DEFAULT_MSG LOOPTOOLS_LIBRARIES LOOPTOOLS_INCLUDE_DIRS)

@@ -1,47 +1,34 @@
-Resummino
-=========
+# resummino
 
-Resummino computes resummation predictions for Beyond the Standard Model (BSM) particle production at hadron colliders up to the NLO+NLL accuracy level. Currently the processes implemented include gaugino-pair production, slepton-pair production and the associated production of gauginos and gluinos. It is able to compute total cross sections as well as invariant-mass and transverse-momentum distributions (only for Drell-Yan-like processes). For the electroweakino-pair production it uses a collinear improved version of threshold resummation for NLO+NLL and the ordinary approach for NLO+NNLL. The Code also includes LO predictions for the associated production of squarks and gauginos.
-This software is open-source software under the terms of the European Union Public Licence version 1.1 or later.
+Official webpage: https://resummino.hepforge.org/
 
-Currently maintained by David Lamprea and Marcel Rothering at the Research Group of Prof. Dr. Michael Klasen Institut für Theoretische Physik, Universität Münster, Germany.
+The original [`readme.md` is found as README.original.md](https://github.com/HEPcodes/resummino/blob/master/README.original.md).
 
-Prerequisites
--------------
 
-* Boost (some headers only; required for SLHAea) <http://www.boost.org/>
-* GNU Scientific Library <http://www.gnu.org/software/gsl/>
-* LHAPDF <http://lhapdf.hepforge.org/>
-* LoopTools <http://www.feynarts.de/looptools//>
+## Authors
 
-Compilation and installation
-----------------------------
+Jonathan Debove, Juri Fiaschi, Benjamin Fuks, Michael Klasen, David R. Lamprea, Alexander Neuwirth, Marcel Rothering
 
-Download and extract the source tarball and `cd` into it. Then you can use the following commands to compile and install the program:
 
-    $ cmake . [options]
-    $ make
-    $ make install
 
-Where the possible `[options]` include:
 
-* `-DLHAPDF=/path/to/lhapdf` sets where to find the LHAPDF library, if not in the standard path. The library should be under the `lib` subdirectory (in this case `/path/to/lhapdf/lib`) and the headers should be under `include` (in this case `/path/to/lhapdf/include`). If you want to set the two directories independently you can use `-DLHAPDF_LIB_DIR` and `-DLHAPDF_INCLUDE_DIR` for the library and the headers respectively.
-* `-DLOOPTOOLS=/path/to/looptools` sets where to find the LoopTools library, if not in the standard path. The library should be in a `lib` or `lib64` subdirectory and the headers should be under `include`. For LoopTools-2.13 you usually have to use for instance `-DLOOPTOOLS=~/.lib/LoopTools-2.13/x86_64-Linux` if you have installed the library in a folder ~/.lib.
-* `-DCMAKE_PREFIX_PATH=path/to/gsllib` sets the path where you have installed gsl (currently resummino does not work with the newest gsl version (>2.0)), if not in the standard path.
-* `-DCMAKE_INSTALL_PREFIX=/path/to/install` sets the path where you want to install Resummino.
+## References
 
-For further options please consult the CMake documentation.
+For slepton pair production,
 
-Running the program
--------------------
+* G. Bozzi, B. Fuks and M. Klasen, [Phys. Rev. D **74** (2006) 015001](https://doi.org/10.1103/PhysRevD.74.015001) [[hep-ph/0603074](https://arxiv.org/abs/hep-ph/0603074)],
+* G. Bozzi, B. Fuks and M. Klasen, [Nucl. Phys. B **777** (2007) 157](https://doi.org/10.1016/j.nuclphysb.2007.03.052) [[hep-ph/0701202](https://arxiv.org/abs/hep-ph/0701202)],
+* G. Bozzi, B. Fuks and M. Klasen, [Nucl. Phys. B **794** (2008) 46](https://doi.org/10.1016/j.nuclphysb.2007.10.021) [[0709.3057](https://arxiv.org/abs/0709.3057)],
+* B. Fuks, M. Klasen, D. R. Lamprea, and M. Rothering, [Eur. Phys. J. C **73** (2013) 2480](https://doi.org/10.1140/epjc/s10052-013-2480-0) [[1304.0790](https://arxiv.org/abs/1304.0790)].
 
-The process information is stored in an input file. An example of such file can be found in `input/resummino.in`. This input files should reference two model files: The SUSY model information should be stored in a separate SUSY Les Houches Accord (SLHA) file (an example `slha.in` is provided), and the new gauge bosons model should be stored in an input file with a similar format (an example defining the Sequential Standard Model is stored in `input/ssm.in`). The you can issue:
+For gaugino pair production,
 
-    $ resummino [options] input_file
-    
-to run the code. The following options are available:
+* J. Debove, B. Fuks and M. Klasen, [Phys. Lett. B **688** (2010) 208](https://doi.org/10.1016/j.physletb.2010.04.013) [[0907.1105](https://arxiv.org/abs/0907.1105)],
+* J. Debove, B. Fuks and M. Klasen, [Nucl. Phys. B **842** (2011) 51](https://doi.org/10.1016/j.nuclphysb.2010.08.016) [[1005.2909](https://arxiv.org/abs/1005.2909)],
+* J. Debove, B. Fuks and M. Klasen, [Nucl. Phys. B **849** (2011) 64](https://doi.org/10.1016/j.nuclphysb.2011.03.015) [[1102.4422](https://arxiv.org/abs/1102.4422)],
+* B. Fuks, M. Klasen, D. R. Lamprea, and M. Rothering, [JHEP **1210** (2012) 081](https://doi.org/10.1007/JHEP10(2012)081) [[1207.2159](https://arxiv.org/abs/1207.2159)],
+* B. Fuks, M. Klasen, D. R. Lamprea, and M. Rothering, [Eur. Phys. J. C **73** (2013) 2480](https://doi.org/10.1140/epjc/s10052-013-2480-0) [[1304.0790](https://arxiv.org/abs/1304.0790)].
 
-* `--lo` stops the calculation after the LO result.
-* `--nlo` stops the calculation after the NLO result.
-* `--nnll` computes ordinary (not collinear improved) threshold resummation at the NLO+NNLL accuracy level for Drell-Yan like processes.
-* `--parameter-log=params.log` stores the values of all parameters, masses and couplings in a log file `params.log` for future reference.
+For associated gaugino-gluino production, please cite:
+
+* B. Fuks, M. Klasen, D. R. Lamprea, and M. Rothering, [Eur. Phys. J. C **73** (2013) 2480](https://doi.org/10.1140/epjc/s10052-013-2480-0) [[1304.0790](https://arxiv.org/abs/1304.0790)].

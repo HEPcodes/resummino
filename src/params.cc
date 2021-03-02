@@ -402,8 +402,8 @@ xw = 0.231
                     vqq[1][i0 / 2][i1 / 2].L * RSD[i0][i2] * conj(RSD[i1][i2]) +
                     vqq[1][i0 / 2][i1 / 2].R * RSD[i0][i2 + 3] * conj(RSD[i1][i2 + 3]);
                 vSQSQ[1][i0 + 6][i1 + 6].R +=
-                    vqq[1][i0 / 2 + 3][i1 / 2 + 3].L * RSD[i0][i2] * conj(RSD[i1][i2]) +
-                    vqq[1][i0 / 2 + 3][i1 / 2 + 3].R * RSD[i0][i2 + 3] * conj(RSD[i1][i2 + 3]);
+                    vqq[1][i0 / 2 + 3][i1 / 2 + 3].L * RSU[i0][i2] * conj(RSU[i1][i2]) +
+                    vqq[1][i0 / 2 + 3][i1 / 2 + 3].R * RSU[i0][i2 + 3] * conj(RSU[i1][i2 + 3]);
                 for (int i3 = 0; i3 < 3; i3++) {
                     vSQSQ[2][i0 + 6][i1].R += vqq[2][i2 + 3][i3].L
                                               * RSU[i0][i2] * conj(RSD[i1][i3]);
@@ -411,6 +411,11 @@ xw = 0.231
                                               * conj(RSU[i0][i2]) * RSD[i1][i3];
                 }
             }
+// BENJ FIX: some couplings are undefined
+            vSQSQ[1][i0][i1].L=vSQSQ[1][i0][i1].R;
+            vSQSQ[1][i0 + 6][i1 + 6].L=vSQSQ[1][i0 + 6][i1 + 6].R;
+            vSQSQ[2][i0][i1].L=vSQSQ[2][i0][i1].R;
+            vSQSQ[2][i0 + 6][i1 + 6].L=vSQSQ[2][i0 + 6][i1 + 6].R;
         }
     }
 
@@ -653,9 +658,9 @@ xw = 0.231
             GLSQq[i0][i1].L = -g3 * M_SQRT2 * RSD[i0][i1];
             GLSQq[i0][i1].R = g3 * M_SQRT2 * RSD[i0][i1 + 3];
             GLSQq[i0][i1 + 3].L = 0.0;
-            gSQSQ[i0][i1 + 3].R = 0.0;
+            GLSQq[i0][i1 + 3].R = 0.0;
             GLSQq[i0 + 6][i1].L = 0.0;
-            gSQSQ[i0 + 6][i1].R = 0.0;
+            GLSQq[i0 + 6][i1].R = 0.0;
             GLSQq[i0 + 6][i1 + 3].L = -g3 * M_SQRT2 * RSU[i0][i1];
             GLSQq[i0 + 6][i1 + 3].R = g3 * M_SQRT2 * RSU[i0][i1 + 3];
         }
@@ -1086,7 +1091,7 @@ for (int i0 = 0; i0 < 6; i0++) {
         g2 = 2.0 * mv[2] * sqrt(M_SQRT2 * G_F);
         g3 = sqrt(4 * M_PI * a_s);
         g1 = sw / cw * g2; // not used
-        fprintf(stderr, "warning: No gauge couplings defined. Using default values.\n");
+    //     fprintf(stderr, "warning: No gauge couplings defined. Will try to read from Z'/W' input file. Otherwise using default values.\n");
     }
 
     // Stau mixing
@@ -1163,116 +1168,146 @@ for (int i0 = 0; i0 < 6; i0++) {
 }
 
 
-void Parameters::read_ZpWp(const char * file) {
-    using namespace std;
-    using namespace SLHAea;
+void Parameters::read_ZpWp(const char *file) {
+  using namespace std;
+  using namespace SLHAea;
 
-    ifstream ifs(file);
-    if (!ifs.good()) {
-        fprintf(stderr, "error: failed to open '%s'.\n", file);
-        exit(1);
-    }
+  ifstream ifs(file);
+  if (!ifs.good()) {
+    fprintf(stderr, "error: failed to open '%s'.\n", file);
+    exit(1);
+  }
+  
+  Coll input(ifs);
 
-    Coll input(ifs);
+  // Neutrino masses
+  ml[0] = 0.0;
+  ml[1] = 0.0;
+  ml[2] = 0.0;
+  
+  mv[1] = to<double>(input.at("SMINPUTS").at("4").at(1)); // Z mass
+  mv[2] = to<double>(input.at("MASS").at("24").at(1)); // W mass
+  
+  mv[3] = to<double>(input.at("MASS").at("32").at(1)); // Z' mass
+  mv[4] = to<double>(input.at("MASS").at("34").at(1)); // W' mass
+  
+  a_em = pow(to<double>(input.at("SMINPUTS").at("1").at(1)), -1);
+//   G_F = to<double>(input.at("SMINPUTS").at("2").at(1));
+//   G_F = 1.16639e-5;
+  a_s = to<double>(input.at("SMINPUTS").at("3").at(1));
+  xw = 1.0 - pow(mv[2] / mv[1], 2);
+  sw = sqrt(xw);
+  cw = sqrt(1.0 - xw);
+  g2 = sqrt(4 * M_PI * a_em) / sw;
+  g3 = sqrt(4 * M_PI * a_s);
+  g1 = sqrt(4 * M_PI * a_em) / cw;
+  fprintf(stderr, "Input parameters and gauge couplings read from Z'/W' input file.\n");
 
-    mv[3] = to<double>(input.at("MASS").at("32").at(1)); // Z' mass
-    mv[4] = to<double>(input.at("MASS").at("34").at(1)); // W' mass
 
 #ifndef SSM
-    Gv[3] = to<double>(input.at("32").at("DECAY").at(2)); // Z' width
+  Gv[3] = to<double>(input.at("32").at("DECAY").at(2)); // Z' width
 #endif
-    Gv[4] = to<double>(input.at("34").at("DECAY").at(2)); // W' width
+  Gv[4] = to<double>(input.at("34").at("DECAY").at(2)); // W' width
 
 #ifndef SSM
-    // Coupling of Z' to d-type quarks.
-    for (Block::const_iterator line = input.at("ZpddL").begin();
-            line != input.at("ZpddL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].L = to<double>(line->at(2));
+  // Coupling of Z' to d-type quarks.
+  for (Block::const_iterator line = input.at("ZpddL").begin();
+       line != input.at("ZpddL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
-    for (Block::const_iterator line = input.at("ZpddR").begin();
-            line != input.at("ZpddR").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].R = to<double>(line->at(2));
+    vqq[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].L =
+        to<double>(line->at(2));
+  }
+  for (Block::const_iterator line = input.at("ZpddR").begin();
+       line != input.at("ZpddR").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
+    vqq[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].R =
+        to<double>(line->at(2));
+  }
 
+  // Coupling of Z' to u-type quarks.
+  for (Block::const_iterator line = input.at("ZpuuL").begin();
+       line != input.at("ZpuuL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
+    }
+    vqq[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].L =
+        to<double>(line->at(2));
+  }
+  for (Block::const_iterator line = input.at("ZpuuR").begin();
+       line != input.at("ZpuuR").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
+    }
+    vqq[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].R =
+        to<double>(line->at(2));
+  }
 
-    // Coupling of Z' to u-type quarks.
-    for (Block::const_iterator line = input.at("ZpuuL").begin();
-            line != input.at("ZpuuL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].L = to<double>(line->at(2));
+  // Coupling of Z' to neutrinos.
+  for (Block::const_iterator line = input.at("ZpvvL").begin();
+       line != input.at("ZpvvL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
-    for (Block::const_iterator line = input.at("ZpuuR").begin();
-            line != input.at("ZpuuR").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].R = to<double>(line->at(2));
-    }
+    vll[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].L =
+        to<double>(line->at(2));
+  }
 
-    // Coupling of Z' to neutrinos.
-    for (Block::const_iterator line = input.at("ZpvvL").begin();
-            line != input.at("ZpvvL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vll[3][to<int>(line->at(0)) - 1][to<int>(line->at(1)) - 1].L = to<double>(line->at(2));
+  // Coupling of Z' to charged leptons.
+  for (Block::const_iterator line = input.at("ZpllL").begin();
+       line != input.at("ZpllL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
+    vll[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].L =
+        to<double>(line->at(2));
+  }
+  for (Block::const_iterator line = input.at("ZpllR").begin();
+       line != input.at("ZpllR").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
+    }
+    vll[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].R =
+        to<double>(line->at(2));
+  }
 
-    // Coupling of Z' to charged leptons.
-    for (Block::const_iterator line = input.at("ZpllL").begin();
-            line != input.at("ZpllL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vll[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].L = to<double>(line->at(2));
+  // Coupling of W' to quarks.
+  for (Block::const_iterator line = input.at("WpudL").begin();
+       line != input.at("WpudL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
-    for (Block::const_iterator line = input.at("ZpllR").begin();
-            line != input.at("ZpllR").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vll[3][to<int>(line->at(0)) + 2][to<int>(line->at(1)) + 2].R = to<double>(line->at(2));
+    vqq[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L =
+        to<double>(line->at(2));
+    vqq[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L =
+        to<double>(line->at(2));
+  }
+  for (Block::const_iterator line = input.at("IMWpudL").begin();
+       line != input.at("IMWpudL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
+    vqq[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L +=
+        II * to<double>(line->at(2));
+    vqq[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L -=
+        II * to<double>(line->at(2));
+  }
 
-    // Coupling of W' to quarks.
-    for (Block::const_iterator line = input.at("WpudL").begin();
-            line != input.at("WpudL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L = to<double>(line->at(2));
-        vqq[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L = to<double>(line->at(2));
+  // Coupling of W' to leptons.
+  for (Block::const_iterator line = input.at("WpvlL").begin();
+       line != input.at("WpvlL").end(); ++line) {
+    if (!line->is_data_line()) {
+      continue;
     }
-    for (Block::const_iterator line = input.at("IMWpudL").begin();
-            line != input.at("IMWpudL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vqq[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L += II * to<double>(line->at(2));
-        vqq[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L -= II * to<double>(line->at(2));
-    }
-
-
-    // Coupling of W' to leptons.
-    for (Block::const_iterator line = input.at("WpvlL").begin();
-            line != input.at("WpvlL").end(); ++line) {
-        if (!line->is_data_line()) {
-            continue;
-        }
-        vll[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L = to<double>(line->at(2));
-        vll[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L = to<double>(line->at(2));
-    }
+    vll[4][to<int>(line->at(0)) + 2][to<int>(line->at(1)) - 1].L =
+        to<double>(line->at(2));
+    vll[4][to<int>(line->at(0)) - 1][to<int>(line->at(1)) + 2].L =
+        to<double>(line->at(2));
+  }
 #endif
-
-
 }
 
 // prints the most important parameters in parameter file
@@ -1425,73 +1460,73 @@ void Parameters::write_log(const char *file) {
         fout << "\n";
     }
 
-    // fout << "----------------------\n"
-    //      << "Z'/W' sector\n"
-    //      << "----------------------\n"
-    //      << "mv =";
-    // for (int i0 = 0; i0 < 5; i0++) {
-    //     fout << "\t" << mv[i0];
-    // }
-    // fout << "\nGv =";
-    // for (int i0 = 0; i0 < 5; i0++) {
-    //     fout << "\t" << Gv[i0];
-    // }
-    // fout << "\nZ'qqR =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vqq[3][i0][i1].R;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nZ'qqL =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vqq[3][i0][i1].L;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nW'qqR =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vqq[4][i0][i1].R;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nW'qqL =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vqq[4][i0][i1].L;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nZ'llR =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vll[3][i0][i1].R;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nZ'llL =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vll[3][i0][i1].L;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nW'llR =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vll[4][i0][i1].R;
-    //     }
-    //     fout << "\n";
-    // }
-    // fout << "\nW'llL =";
-    // for (int i0 = 0; i0 < 6; i0++) {
-    //     for (int i1 = 0; i1 < 6; i1++) {
-    //         fout << "\t" << vll[4][i0][i1].L;
-    //     }
-    //     fout << "\n";
-    // }
-    
+    fout << "----------------------\n"
+       << "Z'/W' sector\n"
+       << "----------------------\n"
+       << "mv =";
+    for (int i0 = 0; i0 < 5; i0++) {
+        fout << "\t" << mv[i0];
+    }
+    fout << "\nGv =";
+    for (int i0 = 0; i0 < 5; i0++) {
+        fout << "\t" << Gv[i0];
+    }
+    fout << "\nZ'qqR =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vqq[3][i0][i1].R;
+        }
+        fout << "\n";
+    }
+    fout << "\nZ'qqL =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vqq[3][i0][i1].L;
+        }
+        fout << "\n";
+    }
+    fout << "\nW'qqR =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vqq[4][i0][i1].R;
+        }
+        fout << "\n";
+    }
+    fout << "\nW'qqL =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vqq[4][i0][i1].L;
+        }
+        fout << "\n";
+    }
+    fout << "\nZ'llR =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vll[3][i0][i1].R;
+        }
+        fout << "\n";
+    }
+    fout << "\nZ'llL =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vll[3][i0][i1].L;
+        }
+        fout << "\n";
+    }
+    fout << "\nW'llR =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vll[4][i0][i1].R;
+        }
+        fout << "\n";
+    }
+    fout << "\nW'llL =";
+    for (int i0 = 0; i0 < 6; i0++) {
+        for (int i1 = 0; i1 < 6; i1++) {
+            fout << "\t" << vll[4][i0][i1].L;
+        }
+        fout << "\n";
+    }
+
     fout.close();
 }

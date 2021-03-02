@@ -26,9 +26,8 @@
 //   - s = channel 2 is s-channel
 // - Spin and color sum and average are implemented in `hxs.cc`.
 
-
-#include <complex>
 #include "kinematics.h"
+#include <complex>
 
 using namespace std;
 
@@ -36,58 +35,66 @@ using namespace std;
 
 // Squared Born matrix elements of O(\epsilon^0).
 double FI::MBss() {
-    return real(8.0 * ivs3v1 * ivs3v2 * (m1 * m2 * papb * (LLRL + LRRR + RLLL + RRLR) +
-                                         2.0 * (pap1 * pbp2 * (LRLR + RLRL) + pap2 * pbp1 * (LLLL + RRRR))));
+  return real(
+      8.0 * ivs3v1 * ivs3v2 *
+      (m1 * m2 * papb * (LLRL + LRRR + RLLL + RRLR) +
+       2.0 * (pap1 * pbp2 * (LRLR + RLRL) + pap2 * pbp1 * (LLLL + RRRR))));
 }
-
 
 double FI::MBtt() {
-    return real(4.0 * ivt1s1 * ivt1s2 * pap1 * pbp2 * (LLLL + LRLR + RLRL + RRRR));
+  return real(4.0 * ivt1s1 * ivt1s2 * pap1 * pbp2 *
+              (LLLL + LRLR + RLRL + RRRR));
 }
 double FI::MBuu() {
-    return real(4.0 * ivu2s1 * ivu2s2 * pap2 * pbp1 * (LLLL + LRLR + RLRL + RRRR));
+  return real(4.0 * ivu2s1 * ivu2s2 * pap2 * pbp1 *
+              (LLLL + LRLR + RLRL + RRRR));
 }
 double FI::MBst() {
-    return real(4.0 * ivs3v1 * ivt1s2 * (2.0 * pap1 * pbp2 * (LRLR + RLRL)
-                                         + m1 * m2 * papb * (LLRL + RRLR)));
+  return real(4.0 * ivs3v1 * ivt1s2 * (2.0 * pap1 * pbp2 * (LRLR + RLRL) +
+                                       m1 * m2 * papb * (LLRL + RRLR)));
 }
 double FI::MBsu() {
-    return real(-4.0 * ivs3v1 * ivu2s2 * (m1 * m2 * papb * (LRLR + RLRL)
-                                          + 2.0 * pap2 * pbp1 * (LLRL + RRLR)));
+  return real(-4.0 * ivs3v1 * ivu2s2 * (m1 * m2 * papb * (LRLR + RLRL) +
+                                        2.0 * pap2 * pbp1 * (LLRL + RRLR)));
 }
 double FI::MBtu() {
-    return real(-2.0 * ivt1s1 * ivu2s2 * ((LRLR + RLRL) * m1 * m2 * papb +
-                                          (LLLL + RRRR) * (-(p1p2 * papb) + pap2 * pbp1 + pap1 * pbp2)));
-
+  return real(-2.0 * ivt1s1 * ivu2s2 *
+              ((LRLR + RLRL) * m1 * m2 * papb +
+               (LLLL + RRRR) * (-(p1p2 * papb) + pap2 * pbp1 + pap1 * pbp2)));
 }
 
 // Squared Born matrix elements of O(\epsilon^1).
 double FI::MB1ss() {
-    return real(-8.0 * ivs3v1 * ivs3v2 *
-                (LLRL * m1 * m2 * papb + LRRR * m1 * m2 * papb + LLLL * p1p2 * papb +
-                 LRLR * p1p2 * papb + 3.0 * LLLL * pap2 * pbp1 - 3.0 * LRLR * pap2 * pbp1 - 3.0 * LLLL * pap1 * pbp2 +
-                 3.0 * LRLR * pap1 * pbp2 + m1 * m2 * papb * RLLL + p1p2 * papb * RLRL - 3.0 * pap2 * pbp1 * RLRL +
-                 3.0 * pap1 * pbp2 * RLRL + m1 * m2 * papb * RRLR + p1p2 * papb * RRRR + 3.0 * pap2 * pbp1 * RRRR -
-                 3.0 * pap1 * pbp2 * RRRR));
+  return real(-8.0 * ivs3v1 * ivs3v2 *
+              (LLRL * m1 * m2 * papb + LRRR * m1 * m2 * papb +
+               LLLL * p1p2 * papb + LRLR * p1p2 * papb +
+               3.0 * LLLL * pap2 * pbp1 - 3.0 * LRLR * pap2 * pbp1 -
+               3.0 * LLLL * pap1 * pbp2 + 3.0 * LRLR * pap1 * pbp2 +
+               m1 * m2 * papb * RLLL + p1p2 * papb * RLRL -
+               3.0 * pap2 * pbp1 * RLRL + 3.0 * pap1 * pbp2 * RLRL +
+               m1 * m2 * papb * RRLR + p1p2 * papb * RRRR +
+               3.0 * pap2 * pbp1 * RRRR - 3.0 * pap1 * pbp2 * RRRR));
 }
 
-
 double FI::MB1st() {
-    return real(-4.0 * ivs3v1 * ivt1s2 *
-                (LLRL * m1 * m2 * papb + (p1p2 * papb - pap2 * pbp1 + pap1 * pbp2) *
-                 (LRLR + RLRL) + m1 * m2 * papb * RRLR));
+  return real(-4.0 * ivs3v1 * ivt1s2 *
+              (LLRL * m1 * m2 * papb +
+               (p1p2 * papb - pap2 * pbp1 + pap1 * pbp2) * (LRLR + RLRL) +
+               m1 * m2 * papb * RRLR));
 }
 
 double FI::MB1su() {
-    return real(4.0 * ivs3v1 * ivu2s2 *
-                (LRLR * m1 * m2 * papb + LLRL * (p1p2 * papb + pap2 * pbp1 - pap1 * pbp2) +
-                 m1 * m2 * papb * RLRL + p1p2 * papb * RRLR + pap2 * pbp1 * RRLR - pap1 * pbp2 * RRLR));
+  return real(4.0 * ivs3v1 * ivu2s2 *
+              (LRLR * m1 * m2 * papb +
+               LLRL * (p1p2 * papb + pap2 * pbp1 - pap1 * pbp2) +
+               m1 * m2 * papb * RLRL + p1p2 * papb * RRLR + pap2 * pbp1 * RRLR -
+               pap1 * pbp2 * RRLR));
 }
 
-//Squared Born matrix elements of O(\epsilon^2).
+// Squared Born matrix elements of O(\epsilon^2).
 double FI::MB2ss() {
-    return real(16.0 * ivs3v1 * ivs3v2 * (pap2 * pbp1 - pap1 * pbp2) *
-                (LLLL - LRLR - RLRL + RRRR));
+  return real(16.0 * ivs3v1 * ivs3v2 * (pap2 * pbp1 - pap1 * pbp2) *
+              (LLLL - LRLR - RLRL + RRRR));
 }
 
 // Squared Born matrix element for slepton pair production.
@@ -95,11 +102,12 @@ double FI::MB2ss() {
 
 // Squared Born matrix elements of O(\epsilon^0).
 double FI::MBssSL() {
-    return real(8.0 * ivs3v1 * ivs3v2 * (LRLR + LLLL) * (2.0 * pap1 * pap2 - pap1 * m2s - pap2 * m1s));
-
+  return real(8.0 * ivs3v1 * ivs3v2 * (LRLR + LLLL) *
+              (2.0 * pap1 * pap2 - pap1 * m2s - pap2 * m1s));
 }
 
-// Squared Born Matrix elements for gaugino-squark production  of O(\epsilon^0). Here I have included the average and color factor
+// Squared Born Matrix elements for gaugino-squark production  of O(\epsilon^0).
+// Here I have included the average and color factor
 /*
 double FI::MBss_SQGA() {
     return real(ivs1s1 * ivs1s2 * papb * pbp2 *  8.0 * (LRLR + RLRL));
@@ -107,18 +115,25 @@ double FI::MBss_SQGA() {
 }
 
 double FI::MBuu_SQGA() {
-    return real(ivu2s1 * ivu2s2 * (- 2.0 * pap2 * RRLR * m2s - 2.0 * pap2 * RRLR * m1s - 2.0 * pap2 * LLRL * m2s - 2.0 * pap2 * LLRL * m1s
-                                   + 4.0 * pap2 * pap2 * RRLR + 4.0 * pap2 * pap2 * LLRL - 4.0 * pap1 * pap2 * RRLR - 4.0 * pap1 * pap2 * LLRL
-                                   + 4.0 * p1p2 * pap2 * RRLR + 4.0 * p1p2 * pap2 * LLRL));
+    return real(ivu2s1 * ivu2s2 * (- 2.0 * pap2 * RRLR * m2s - 2.0 * pap2 * RRLR
+* m1s - 2.0 * pap2 * LLRL * m2s - 2.0 * pap2 * LLRL * m1s
+                                   + 4.0 * pap2 * pap2 * RRLR + 4.0 * pap2 *
+pap2 * LLRL - 4.0 * pap1 * pap2 * RRLR - 4.0 * pap1 * pap2 * LLRL
+                                   + 4.0 * p1p2 * pap2 * RRLR + 4.0 * p1p2 *
+pap2 * LLRL));
 
 
 }
 
 double FI::MBsu_SQGA() {
-    return real(ivs1s1 * ivu2s2 * (4.0 * pap2 * pbp2 * RLRR + 4.0 * pap2 * pbp2 * LRLL - 2.0 * pap2 * pbp1 * RLRR - 2.0 * pap2 * pbp1 *
-                                   LRLL + 4.0 * pap2 * pap2 * RLRR + 4.0 * pap2 * pap2 * LRLL - 2 * pap1 * pbp2 * RLRR - 2.0 * pap1 * pbp2 *
-                                   LRLL - 4.0 * pap1 * pap2 * RLRR - 4.0 * pap1 * pap2 * LRLL - 2.0 * papb * RLRR * m2s - 2.0 * papb *
-                                   LRLL * m2s + 2.0 * p1p2 * papb * RLRR + 2.0 * p1p2 * papb * LRLL));
+    return real(ivs1s1 * ivu2s2 * (4.0 * pap2 * pbp2 * RLRR + 4.0 * pap2 * pbp2
+* LRLL - 2.0 * pap2 * pbp1 * RLRR - 2.0 * pap2 * pbp1 *
+                                   LRLL + 4.0 * pap2 * pap2 * RLRR + 4.0 * pap2
+* pap2 * LRLL - 2 * pap1 * pbp2 * RLRR - 2.0 * pap1 * pbp2 *
+                                   LRLL - 4.0 * pap1 * pap2 * RLRR - 4.0 * pap1
+* pap2 * LRLL - 2.0 * papb * RLRR * m2s - 2.0 * papb *
+                                   LRLL * m2s + 2.0 * p1p2 * papb * RLRR + 2.0 *
+p1p2 * papb * LRLL));
 
 
 

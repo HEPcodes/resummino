@@ -9,52 +9,46 @@
 //
 // Partonic cross section for slepton pair production
 
-#include <stdio.h>
 #include <cmath>
 #include <complex>
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
+#include <stdio.h>
 
-#include "params.h"
 #include "kinematics.h"
+#include "params.h"
 #include "utils.h"
 
 // Partonic cross section for slepton pair production.
 double born_sleptons(const double S, const double T, Parameters *params) {
-    
-    double born = 0.0;
 
-    int aa = params->in1;
-    int bb = params->in2;
-    int ii = params->out1 - 10;
-    int jj = params->out2 - 10;
+  double born = 0.0;
 
-    int qs = iabs(aa / 3 - bb / 3); // Vector charge for s-channel
+  int aa = params->in1;
+  int bb = params->in2;
+  int ii = params->out1 - 10;
+  int jj = params->out2 - 10;
 
-    // Sets different Born kinematics.
-    FI *ff = new FI();
-    ff->SetKinematic(params->mSL[ii], params->mSL[jj], S, T);
+  int qs = iabs(aa / 3 - bb / 3); // Vector charge for s-channel
 
-    for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
-        for (int i1 = 2 * qs; i1 < qs + 2; i1++) {
-            struct Coupling Cw[4] = {
-                params->vSLSL[i0][ii][jj],
-                params->vqq[i0][bb][aa],
-                params->vSLSL[i1][ii][jj],
-                params->vqq[i1][bb][aa]
-            };
-            if (is_coupling_null(Cw, 4) == 1) {
-                continue;
-            }
-            ff->SetPropagator(params->mv[i0],
-                              params->mv[i1],
-                              0.0,
-                              0.0);
+  // Sets different Born kinematics.
+  FI *ff = new FI();
+  ff->SetKinematic(params->mSL[ii], params->mSL[jj], S, T);
 
-            ff->SetWCoupling(Cw);
-            born += ff->MBssSL();
-        }
+  for (int i0 = 2 * qs; i0 < qs + 2; i0++) {
+    for (int i1 = 2 * qs; i1 < qs + 2; i1++) {
+      struct Coupling Cw[4] = {
+          params->vSLSL[i0][ii][jj], params->vqq[i0][bb][aa],
+          params->vSLSL[i1][ii][jj], params->vqq[i1][bb][aa]};
+      if (is_coupling_null(Cw, 4) == 1) {
+        continue;
+      }
+      ff->SetPropagator(params->mv[i0], params->mv[i1], 0.0, 0.0);
+
+      ff->SetWCoupling(Cw);
+      born += ff->MBssSL();
     }
-    delete ff;
-    return born;
+  }
+  delete ff;
+  return born;
 }

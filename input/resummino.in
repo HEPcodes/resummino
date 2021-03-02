@@ -12,6 +12,10 @@ center_of_mass_energy = 13000
 # The particles are listed in the table below. A minus in front of the PDG
 # means charge conjugation. 
 # ┌─────────────────────┬───────────────────┬───────────────────┐
+# │ e_L-      =      11 │ nu_eL   =      12 │                   │
+# │ mu_L-     =      13 │ nu_muL  =      14 │                   │
+# │ tau_1-    =      15 │ nu_tau  =      16 │                   │
+# ├─────────────────────┼───────────────────┼───────────────────┤
 # │ ~e_L-     = 1000011 │ ~e_R-   = 2000011 │ ~nu_eL  = 1000012 │
 # │ ~mu_L-    = 1000013 │ ~mu_R-  = 2000013 │ ~nu_muL = 1000014 │
 # │ ~tau_1-   = 1000015 │ ~tau_2- = 2000015 │ ~nu_tau = 1000016 │
@@ -51,11 +55,15 @@ pt     = auto
 # SLHA input file that defines the SUSY benchmark point.
 slha = slha.in
 
+# Z'/W' model parameters.
+# (For di-lepton production, input parameters are read from the zpwp file.)
+zpwp = ssm.in
+
 # PDF sets for LO and NLO. They should be present in the LHAPDF local setup.
 pdf_format = lhgrid  # lhgrid or lhpdf
-pdf_lo     = CT14llo
+pdf_lo     = CT14lo
 pdfset_lo  = 0
-pdf_nlo     = CT14nlo
+pdf_nlo    = CT14nlo
 pdfset_nlo = 0
 
 #scale factors 
@@ -66,6 +74,12 @@ mu_r = 1.0
 # Integration parameters.
 precision = 0.01  # desired precision
 max_iters = 5  # maximum iterations
+
+# Minimum invariant mass cut for integration for massless outgoing particles. Ignored otherwise.
+# (Minv_min = auto sets Minv_min = (3/4)*Mz')
+# (Minv_max = auto sets Minv_max = (5/4)*Mz')
+Minv_min = auto
+Minv_max = auto
 
 # optional PDF fit parameter
 # weights

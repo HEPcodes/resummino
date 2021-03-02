@@ -9,49 +9,50 @@
 //
 // Partonic cross section.
 
-#include <stdio.h>
 #include <cmath>
 #include <complex>
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
+#include <stdio.h>
 
-#include "params.h"
-#include "kinematics.h"
-#include "utils.h"
 #include "dipoles.h"
+#include "kinematics.h"
+#include "params.h"
+#include "utils.h"
 
 // TODO: LASSE
-double real_gluon_gaugino_squark(const double S, const double M2, const double PT2,
-                                 const double TH, const double PH, const int YS, Parameters *params) {
-    double born = 0.0;
-    int aa = params->in1;
-    int bb = params->in2;
-    int ii = params->out1;
-    int jj = params->out2;
+double real_gluon_gaugino_squark(const double S, const double M2,
+                                 const double PT2, const double TH,
+                                 const double PH, const int YS,
+                                 Parameters *params) {
+  double born = 0.0;
+  int aa = params->in1;
+  int bb = params->in2;
+  int ii = params->out1;
+  int jj = params->out2;
 
-    // Set different kinematics for 2 -> 3 process
-    FI *ff = new FI();
-    JET_KINEMATICS
+  // Set different kinematics for 2 -> 3 process
+  FI *ff = new FI();
+  JET_KINEMATICS
 
-        if (ii > 30 ) {
-            ii = ii - 31;
-        } else {jj = jj - 31;}
-    
-    struct Coupling Cw[4] = {0, 0, 0, 0};
-    Cw[0] = params->CHSQq[jj][ii][aa];
-    Cw[1] = params->gSQSQ[ii][ii];
-    Cw[2] = params->CHSQq[jj][ii][aa];
-    Cw[3] = params->gSQSQ[ii][ii];
+  if (ii > 30) {
+    ii = ii - 31;
+  } else {
+    jj = jj - 31;
+  }
 
-    ff->SetPropagator(params->mSQ[ii],
-                      params->mSQ[ii],
-                      params->mSQ[ii] * 1.0e-2,
-                      params->mSQ[ii] * 1.0e-2);
+  struct Coupling Cw[4] = {0, 0, 0, 0};
+  Cw[0] = params->CHSQq[jj][ii][aa];
+  Cw[1] = params->gSQSQ[ii][ii];
+  Cw[2] = params->CHSQq[jj][ii][aa];
+  Cw[3] = params->gSQSQ[ii][ii];
 
-    ff->SetWCoupling(Cw);
-    born += ff->MG_SQGA1();
+  ff->SetPropagator(params->mSQ[ii], params->mSQ[ii], params->mSQ[ii] * 1.0e-2,
+                    params->mSQ[ii] * 1.0e-2);
 
-    delete ff;
-    return born;
+  ff->SetWCoupling(Cw);
+  born += ff->MG_SQGA1();
 
+  delete ff;
+  return born;
 }

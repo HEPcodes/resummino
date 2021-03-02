@@ -32,8 +32,7 @@ complex<double> Beta(const complex<double> x, const complex<double> y);
 // in pdfN.
 static inline complex<double> beta_over_gamma(const complex<double> x,
                                               const complex<double> y) {
-    return Gamma(x) / Gamma(x + y);
+  return Gamma(x) / Gamma(x + y);
 }
-
 
 #endif

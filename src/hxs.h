@@ -12,9 +12,10 @@
 #ifndef HXS_H_
 #define HXS_H_
 
-// Computes the total hadronic cross section for a given set of parameters.
-void hadronic_xs(double &res, double &err,  int Flag, Parameters *params);
+#include "params.h"
 
+// Computes the total hadronic cross section for a given set of parameters.
+void hadronic_xs(double &res, double &err, int Flag, Parameters *params);
 
 // Computes the differential hadronic cross section with respecto to $p_T^2$
 // for a given set of parameters.

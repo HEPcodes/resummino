@@ -36,6 +36,14 @@ set(resummino_SRCS
   integration_method.cc
 )
 
+## properties of LoopTools installation
+ExternalProject_Get_Property(lt install_dir)
+include_directories(${install_dir}/include)
+
 add_executable(resummino ${resummino_SRCS})
-target_link_libraries(resummino ${GSL_LIBRARIES} ${LHAPDF_LIBRARIES} ${LOOPTOOLS_LIBRARIES} gfortran)
+add_dependencies(resummino lt)
+
+## changed the looptools configure script that the folder is always called lib
+target_link_libraries(resummino ${GSL_LIBRARIES} ${LHAPDF_LIBRARIES} ${LHAPDF_LIBRARIES} ${install_dir}/lib/libooptools.a gfortran)
+
 install(TARGETS resummino RUNTIME DESTINATION bin)
